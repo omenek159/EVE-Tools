@@ -74,10 +74,6 @@ input[type=number]{font-family:var(--f-mono);font-variant-numeric:tabular-nums;t
 .status{font-size:13px;display:flex;gap:8px;align-items:flex-start}
 .dot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none;background:var(--muted)}
 .dot.ok{background:var(--good)} .dot.old{background:var(--warn)} .dot.err{background:var(--bad)}
-.paste{border-top:1px dashed var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px;font-size:13px}
-.paste ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
-.paste textarea{font-family:var(--f-mono);font-size:12px;height:70px;resize:vertical}
-.paste a{color:var(--accent);font-weight:600}
 .msg{font-size:13px} .msg.err{color:var(--bad)} .msg.ok{color:var(--good)}
 
 .miner{border:1px solid var(--line);border-radius:5px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--panel-2)}

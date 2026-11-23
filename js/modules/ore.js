@@ -1,8 +1,6 @@
 // Ore Profit Calculator module (ported from the standalone Ore Profit Calculator v26).
-// The app ships without prices and loads them on first launch, trying in order:
-//   1. prices.php on your own server (shared 10-minute Fuzzwork cache),
-//   2. Fuzzwork straight from the browser (static hosting such as GitHub Pages, if Fuzzwork allows it),
-//   3. "open Fuzzwork, copy, paste" (e.g. the claude.ai artifact, which can't reach other sites).
+// The app ships without prices. They come only from prices.php on the same server (shared Fuzzwork cache,
+// refreshed at most every 10 minutes): loaded on first launch, then kept up to date automatically.
 import { r2, nf2, nf0, isk, fullIsk, esc, showTip, hideTip, store } from "../shared.js";
 
 const KEY = "oreProfitCalc.v1";
@@ -17,7 +15,6 @@ const GAS_SECTIONS = [                 // wormhole gas first, then k-space gas
   { title: "K-space gas", from: 42, to: 60 },
 ];
 const SYNC_EVERY = 5 * 60 * 1000;      // ask for anything newer this often
-const DIRECT_TTL = 10 * 60 * 1000;     // straight from Fuzzwork: at most once per 10 minutes per browser
 const NO_PRICES = hub => ({ source: "none", at: null, hub, data: {} });
 
 const TEMPLATE = `
@@ -53,16 +50,6 @@ const TEMPLATE = `
         <button class="btn btn-primary" id="pull" type="button">Pull prices</button>
         <div class="status"><span class="dot" id="statusDot"></span><span id="statusText"></span></div>
         <div class="msg err" id="pullErr" role="alert" hidden></div>
-        <div class="paste" id="pastePanel" hidden>
-          <span>This page can't reach a price server. Fetch the prices from Fuzzwork in a new tab:</span>
-          <ol>
-            <li><a id="fwLink" href="#" target="_blank" rel="noopener">Open Fuzzwork prices</a> <button class="btn" id="copyUrl" type="button" style="padding:2px 8px;font-size:12px">Copy link</button></li>
-            <li>Select all and copy the page (Ctrl+A, Ctrl+C). In Firefox, switch to "Raw Data" first.</li>
-            <li>Paste it below.</li>
-          </ol>
-          <textarea id="pasteBox" placeholder='{"1230":{"buy":{...},"sell":{...}}, ...}' aria-label="Paste Fuzzwork JSON"></textarea>
-          <div class="msg" id="pasteMsg" role="status"></div>
-        </div>
       </section>
 
       <section class="panel" aria-labelledby="h-fleet">
@@ -177,7 +164,7 @@ const TEMPLATE = `
   <footer class="note">
     Income = fleet yield (m³/s) × 3600 × ISK per m³. ISK per m³ = unit price ÷ raw ore volume, rounded to 0.01, so compressed and raw compare on the same mined m³.
     Miner yield = module yield × (1 + crit chance % × crit bonus %) + drone yield. Gas uses the huffer yield. Belt value = units × unit price; time to clear and session cargo use the fleet yield.
-    Prices: Fuzzwork market aggregates, loaded on first launch through prices.php (shared copy, refreshed at most every 10 minutes), straight from Fuzzwork, or pasted by hand.
+    Prices: Fuzzwork market aggregates, loaded through prices.php on your server (one shared copy, refreshed at most every 10 minutes).
   </footer>`;
 
 /* ---------- module state ---------- */
@@ -185,7 +172,7 @@ let DATA, S, $, $$, init, syncNow;
 let belt = null;              // {rocks, unknown} from the last Calculate; never saved
 let cargo = null;             // {items, skipped} from the last Add cargo; never saved
 let lastSync = 0, syncing = false;
-let backend = null;           // where prices come from: "php" | "direct" | "none" (paste only); null = not tried yet
+let noServer = false;         // prices.php isn't available here: stop syncing, say so
 let BY_NAME, CARGO_NAMES;
 
 function defaults() {
@@ -484,39 +471,35 @@ export async function mount(el) {
   const hubEl = $("hub"), basisEl = $("basis");
   const HUBNAME = v => hubEl.querySelector(`option[value="${v}"]`)?.textContent || v;
   basisEl.addEventListener("change", () => { S.basis = basisEl.value; save(); renderStatus(); renderTables(); });
-  hubEl.addEventListener("change", () => { S.hub = hubEl.value; save(); updateLink(); renderStatus(); serverSync(); });   // load the new market's prices straight away
+  hubEl.addEventListener("change", () => { S.hub = hubEl.value; save(); renderStatus(); serverSync(); });   // load the new market's prices straight away
   const allIds = () => { const s = new Set(); DATA.fam.flat().forEach(it => { s.add(it[1]); if (it[3]) s.add(it[3]); }); return [...s]; };
   const priceUrl = since => `${PRICES_URL}?market=${encodeURIComponent(S.hub)}&types=${allIds().join(",")}${since ? `&since=${since}` : ""}`;
-  const fwUrl = () => { const [k, id] = S.hub.split(":"); return `https://market.fuzzwork.co.uk/aggregates/?${k}=${id}&types=${allIds().join(",")}`; };
-  const updateLink = () => { $("fwLink").href = fwUrl(); };
 
   function renderStatus() {
     const dot = $("statusDot"), t = $("statusText"), p = S.prices;
     if (p.source === "none") {
       dot.className = "dot err";
-      t.innerHTML = backend === "none" ? "No prices yet. Paste them from Fuzzwork below." : "No prices yet. Loading them…";
+      t.innerHTML = noServer ? "No prices: prices.php isn't available here. Open EVE Tools on your PHP server." : "No prices yet. Loading them…";
       return;
     }
     const age = (Date.now() - p.at) / 36e5;
     dot.className = "dot " + (age > 6 ? "old" : "ok");
     const when = new Date(p.at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
     if (p.hub !== S.hub) {
-      t.innerHTML = backend === "none" ? `Showing ${esc(HUBNAME(p.hub))} prices. Pull prices to get ${esc(HUBNAME(S.hub))}.` : `Loading ${esc(HUBNAME(S.hub))} prices…`;
+      t.innerHTML = noServer ? `Showing ${esc(HUBNAME(p.hub))} prices. prices.php isn't available here, so ${esc(HUBNAME(S.hub))} can't be loaded.` : `Loading ${esc(HUBNAME(S.hub))} prices…`;
       return;
     }
-    t.innerHTML = p.source === "paste"
-      ? `${esc(HUBNAME(p.hub))}, ${Object.keys(p.data).length} items. Pasted from Fuzzwork, ${esc(when)}.`
-      : `${esc(HUBNAME(p.hub))}, ${Object.keys(p.data).length} items. Prices from Fuzzwork${p.source === "direct" ? "" : " via your server"}, ${esc(when)}. They refresh automatically every ${Math.round((p.ttl || 600) / 60)} minutes.`;
+    t.innerHTML = `${esc(HUBNAME(p.hub))}, ${Object.keys(p.data).length} items. Prices from Fuzzwork, ${esc(when)}. They refresh automatically every ${Math.round((p.ttl || 600) / 60)} minutes.`;
   }
-  function acceptPrices(res, source = "fuzzwork") {
+  function acceptPrices(res) {
     const json = res && res.data, keys = Object.keys(json || {});
     if (!keys.length || !keys.every(k => /^\d+$/.test(k)) || !json[keys[0]].sell) throw new Error("shape");
-    S.prices = { source, at: res.fetchedAt * 1000, cached: !!res.cached, ttl: res.ttl || 600, hub: res.market || S.hub, data: json };
+    S.prices = { source: "fuzzwork", at: res.fetchedAt * 1000, cached: !!res.cached, ttl: res.ttl || 600, hub: res.market || S.hub, data: json };
     save(); renderStatus(); renderTables();
   }
 
   // One request to prices.php returns the prices (only when newer than "since").
-  // Errors with .noBackend mean there's no working prices.php here (artifact, static host, file://).
+  // Errors with .noServer mean there's no working prices.php here (static hosting, file://).
   async function requestServer(since) {
     const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 20000);
     let r;
@@ -526,84 +509,44 @@ export async function mount(el) {
     try { json = await r.json(); }
     catch (_) {
       const e = new Error(r.status === 404 ? "prices.php wasn't found next to this page." : `The server answered with HTTP ${r.status} instead of price data. Check that PHP is enabled for prices.php.`);
-      e.noBackend = true; throw e;
+      e.noServer = true; throw e;
     }
     if (!r.ok || json.error) throw new Error(json.error || `The server answered with HTTP ${r.status}.`);
     return json;
   }
 
-  // Straight from Fuzzwork. A plain GET with no custom headers, so the browser sends no CORS preflight.
-  async function requestDirect() {
-    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 20000);
-    try {
-      const r = await fetch(fwUrl(), { signal: ctl.signal, cache: "no-store" });
-      if (!r.ok) throw new Error(`Fuzzwork answered with HTTP ${r.status}.`);
-      return { data: await r.json(), fetchedAt: Math.floor(Date.now() / 1000), market: S.hub, ttl: DIRECT_TTL / 1000 };
-    } finally { clearTimeout(to); }
+  const pullErr = $("pullErr");
+  function serverMissing() {
+    noServer = true; renderStatus();
+    pullErr.textContent = "prices.php isn't available here. EVE Tools loads prices only through prices.php, so open it on your PHP server.";
+    pullErr.hidden = false;
   }
-  // Try the sources in order and remember the first that works. Throws .noSource when only pasting is left.
-  async function fetchPrices(since) {
-    if (backend === null || backend === "php") {
-      try { const j = await requestServer(since); backend = "php"; return { res: j, source: "fuzzwork" }; }
-      catch (e) { if (backend === "php" || !(e.noBackend || e instanceof TypeError)) throw e; }
-    }
-    if (backend === null || backend === "direct") {
-      try { const j = await requestDirect(); backend = "direct"; return { res: j, source: "direct" }; }
-      catch (e) { if (backend === "direct") throw e; }
-    }
-    backend = "none";
-    const e = new Error("no price source"); e.noSource = true; throw e;
-  }
-
-  const pullErr = $("pullErr"), pastePanel = $("pastePanel"), pasteMsg = $("pasteMsg"), pasteBox = $("pasteBox");
-  function showPaste(focus = true) { pastePanel.hidden = false; pasteMsg.textContent = ""; pasteMsg.className = "msg"; updateLink(); renderStatus(); if (focus) pasteBox.focus(); }
   $("pull").addEventListener("click", async () => {
     const btn = $("pull"); btn.disabled = true; btn.textContent = "Pulling…"; pullErr.hidden = true;
-    if (backend === "none") backend = null;               // the button tries every source again
     try {
-      const { res, source } = await fetchPrices(0);       // the button always takes the full prices
-      lastSync = Date.now(); pastePanel.hidden = true;
-      try { acceptPrices(res, source); } catch (_) { throw new Error("The price data had no prices for these items."); }
+      const json = await requestServer(0);                // the button always takes the full prices
+      lastSync = Date.now(); noServer = false;
+      try { acceptPrices(json); } catch (_) { throw new Error("The price data had no prices for these items."); }
     } catch (e) {
-      if (e.noSource) showPaste();
+      if (e.noServer) serverMissing();
       else {
-        pullErr.textContent = e.name === "AbortError" ? "No answer within 20 seconds. Try again." : e instanceof TypeError ? "Couldn't reach the price server. Check your connection and try again." : e.message;
+        pullErr.textContent = e.name === "AbortError" ? "The server didn't answer within 20 seconds. Try again." : e instanceof TypeError ? "Couldn't reach your server. Check your connection and try again." : e.message;
         pullErr.hidden = false;
       }
     } finally { btn.disabled = false; btn.textContent = "Pull prices"; }
   });
-  pasteBox.addEventListener("input", () => {
-    const t = pasteBox.value.trim(); if (!t) { pasteMsg.textContent = ""; return; }
-    try {
-      const data = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
-      acceptPrices({ data, fetchedAt: Math.floor(Date.now() / 1000), market: S.hub, ttl: 0 }, "paste");
-      pasteMsg.className = "msg ok"; pasteMsg.textContent = `Prices updated from ${HUBNAME(S.hub)}.`;
-      pasteBox.value = "";
-    } catch (e) {
-      pasteMsg.className = "msg err"; pasteMsg.textContent = "That isn't the Fuzzwork price data. Copy the whole page from the Fuzzwork tab and paste it again.";
-    }
-  });
-  $("copyUrl").addEventListener("click", async e => {
-    try { await navigator.clipboard.writeText(fwUrl()); e.target.textContent = "Copied"; }
-    catch (_) { e.target.textContent = "Copy failed"; }
-    setTimeout(() => e.target.textContent = "Copy link", 1500);
-  });
 
-  // On launch, every 5 minutes, and when the tab is shown again, look for newer prices. prices.php returns them only
-  // when its shared copy (refreshed from Fuzzwork at most every 10 minutes) is newer than ours; straight from
-  // Fuzzwork, at most every 10 minutes. Errors are silent here; the Pull prices button reports them. With no
-  // source left but pasting, it stops, and opens the paste box if there are no prices at all.
+  // On launch, every 5 minutes, and when the tab is shown again, ask prices.php for anything newer. It returns the
+  // prices only when its shared copy (refreshed from Fuzzwork at most every 10 minutes) is newer than ours.
+  // Errors are silent here (the Pull prices button reports them), except a missing prices.php, which stops syncing.
   async function serverSync() {
-    if (syncing || backend === "none") return; syncing = true; lastSync = Date.now();
+    if (syncing || noServer) return; syncing = true; lastSync = Date.now();
     try {
-      const sameHub = S.prices.hub === S.hub;
-      if (backend === "direct" && S.prices.source === "direct" && sameHub && Date.now() - S.prices.at < DIRECT_TTL) return;
-      const have = S.prices.source === "fuzzwork" && sameHub ? Math.floor(S.prices.at / 1000) : 0;
-      const { res, source } = await fetchPrices(have);
-      if (res.data) acceptPrices(res, source);
-    } catch (e) {
-      if (e.noSource) { renderStatus(); if (S.prices.source === "none") showPaste(false); }
-    } finally { syncing = false; }
+      const have = S.prices.source === "fuzzwork" && S.prices.hub === S.hub ? Math.floor(S.prices.at / 1000) : 0;
+      const json = await requestServer(have);
+      if (json.data) acceptPrices(json);
+    } catch (e) { if (e.noServer) serverMissing(); }
+    finally { syncing = false; }
   }
   setInterval(serverSync, SYNC_EVERY);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastSync > 2 * 60 * 1000) serverSync(); });
@@ -909,7 +852,7 @@ export async function mount(el) {
     hubEl.value = S.hub; basisEl.value = S.basis;
     sessHEl.value = S.sess.h; sessMEl.value = S.sess.m; bestEl.checked = !!S.sess.best;
     sessEndEl.value = S.sess.end || ""; sharePctEl.value = S.sess.pct;
-    syncUnit(); updateLink(); applyMode(); applyFleetTab();
+    syncUnit(); applyMode(); applyFleetTab();
     renderMiners(); renderHuffers(); renderStatus(); renderTables();
   };
   syncNow = serverSync;
@@ -920,7 +863,7 @@ export async function mount(el) {
 /** Called by Settings → reset after the module's saved data was removed. */
 export function reset() {
   if (!init) return;
-  loadState(); backend = null; belt = null; cargo = null;
+  loadState(); noServer = false; belt = null; cargo = null;
   $("scan").value = ""; $("cargo").value = "";
   init(); syncNow();
 }
