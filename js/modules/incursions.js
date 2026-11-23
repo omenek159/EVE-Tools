@@ -8,8 +8,8 @@ const KEY = "eveTools.incursions.v2";
 const SITES = [
   ["Mothership (HS)",        63000000, 14000,  80],
   ["Mothership (LS/NS)",     90000000, 20000, 120],
-  ["Headquarters (HS)",      31500000,  7000,  40],
-  ["Headquarters (LS/NS)",   45000000, 10000,  60],
+  ["Headquarter (HS)",       31500000,  7000,  40],
+  ["Headquarter (LS/NS)",    45000000, 10000,  60],
   ["Assault (HS)",           18200000,  3500,  20],
   ["Assault (LS/NS)",        26000000,  5000,  30],
   ["Vanguard (HS)",          10395000,  1400,  10],
