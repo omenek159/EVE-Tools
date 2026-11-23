@@ -1,5 +1,6 @@
 // App shell: module registry, menu, hash routing, lazy module loading, settings drawer.
 import { hideTip, store } from "./shared.js";
+import { APP_VERSION } from "./version.js";
 
 /* ---------- module registry ----------
    To add a tool: create js/modules/<name>.js exporting mount(el) and optionally reset(),
@@ -88,6 +89,50 @@ resets.addEventListener("click", async e => {
   if (loaded.has(m.id)) { try { (await loaded.get(m.id)).reset?.(); } catch (_) {} }
   resetMsg.className = "msg ok"; resetMsg.textContent = `${m.label}: done.`;
 });
+
+/* ---------- update check ----------
+   prices.php?version=1 reports the APP_VERSION on the server (read from js/version.js). When it is newer than
+   the one this page loaded, offer a reload. Where there is no prices.php (claude.ai artifact, static hosting),
+   the first failed check stops it for good. */
+const VERSION_URL = new URL("../prices.php?version=1", import.meta.url);
+const SHELL_FILES = ["../index.html", "../css/app.css", "./app.js", "./shared.js", "./version.js", "../data/ores.json"];
+let lastCheck = 0, checking = false, noServer = false, dismissed = 0;
+document.getElementById("appVer").textContent = APP_VERSION;
+
+async function unsavedNotes() {
+  const notes = [];
+  for (const p of loaded.values()) { try { const n = (await p).unsavedNote?.(); if (n) notes.push(n); } catch (_) {} }
+  return notes;
+}
+async function checkVersion() {
+  if (checking || noServer) return; checking = true; lastCheck = Date.now();
+  try {
+    const r = await fetch(VERSION_URL, { cache: "no-store", headers: { Accept: "application/json" } });
+    let latest;
+    try { latest = +(await r.json()).version || 0; } catch (_) { noServer = true; return; }
+    if (latest > APP_VERSION && latest !== dismissed) {
+      const notes = await unsavedNotes();
+      document.getElementById("updText").innerHTML = `<b>Version ${latest} is available.</b> You're using version ${APP_VERSION}. Your settings are kept${notes.length ? `, but ${notes.join(" and ")} will need to be pasted again` : ""}.`;
+      document.getElementById("updBar").dataset.latest = latest;
+      document.getElementById("updWrap").hidden = false;
+    }
+  } catch (_) { /* offline: try again next time */ }
+  finally { checking = false; }
+}
+document.getElementById("updReload").addEventListener("click", async () => {
+  // Refresh the browser's cached copies first, so Reload can't mix old and new files.
+  const urls = [...SHELL_FILES, ...LIVE.map(m => m.file)].map(f => new URL(f, import.meta.url));
+  urls.push(new URL(location.pathname, location.href));   // the page as it was opened ("/" as well as "/index.html")
+  await Promise.all(urls.map(u => fetch(u, { cache: "reload" }).catch(() => {})));
+  location.reload();
+});
+document.getElementById("updLater").addEventListener("click", () => {
+  dismissed = +document.getElementById("updBar").dataset.latest || 0;     // don't ask again for this version
+  document.getElementById("updWrap").hidden = true;
+});
+setInterval(checkVersion, 5 * 60 * 1000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastCheck > 2 * 60 * 1000) checkVersion(); });
+setTimeout(checkVersion, 3000);
 
 applyTheme();
 route();

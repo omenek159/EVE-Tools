@@ -19,10 +19,17 @@ export const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": 
 /* ---------- tooltip (one shared element) ---------- */
 const tip = document.getElementById("tip");
 export function hideTip() { tip.hidden = true; }
-export function showTip(anchor, html) {
+/** Show the tooltip next to `anchor` (to its right), or under it with { below: true }. */
+export function showTip(anchor, html, { below = false } = {}) {
   tip.innerHTML = html;
   tip.hidden = false;
   const r = anchor.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
+  if (below) {
+    const x = Math.min(Math.max(8, r.left), innerWidth - tw - 8);
+    let y = r.bottom + 6; if (y + th > innerHeight - 8) y = r.top - th - 6;
+    tip.style.left = x + "px"; tip.style.top = Math.max(8, y) + "px";
+    return;
+  }
   let x = r.right + 8, y = r.top;
   if (x + tw > innerWidth - 8) x = r.left - tw - 8;
   if (x < 8) { x = Math.max(8, Math.min(innerWidth - tw - 8, r.left)); y = r.bottom + 6; if (y + th > innerHeight - 8) y = r.top - th - 6; }

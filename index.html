@@ -35,6 +35,16 @@
   <div class="inner" id="menuItems"></div>
 </nav>
 
+<div class="inner" id="updWrap" hidden>
+  <div class="upd" id="updBar" role="status">
+    <span id="updText"></span>
+    <span class="upd-actions">
+      <button class="btn btn-upd" id="updReload" type="button">Reload</button>
+      <button class="btn" id="updLater" type="button">Later</button>
+    </span>
+  </div>
+</div>
+
 <div id="views"></div>
 
 <div class="scrim" id="scrim" hidden></div>
@@ -62,6 +72,9 @@
       <span class="hint">Your fleets, prices and inputs are kept in this browser only.</span>
       <div id="resetButtons" style="display:flex;flex-direction:column;gap:8px"></div>
       <span class="msg" id="resetMsg" role="status"></span>
+    </div>
+    <div class="grp">
+      <span class="hint">EVE Tools version <b id="appVer"></b></span>
     </div>
   </div>
 </aside>

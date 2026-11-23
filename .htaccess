@@ -1,0 +1,12 @@
+# Apache: make browsers check for a newer copy of the app's files on every load (cheap 304 when unchanged),
+# so a reload after an update never mixes old and new modules.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|css|json)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+# Keep the price cache private.
+<IfModule mod_alias.c>
+  RedirectMatch 404 ^/(.*/)?cache/
+</IfModule>

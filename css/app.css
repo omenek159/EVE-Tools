@@ -158,6 +158,80 @@ tr.alt td{color:var(--muted)}
 table.compact{min-width:0}
 table.compact td{padding-block:2px}
 
+
+/* ---------- ore module: fleet tabs, mining session, belt (from Ore Profit Calculator v26) ---------- */
+input[type=time]{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:6px 8px;width:100%;min-width:0;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.fleet-tabs{display:flex}
+.fleet-tabs button{flex:1}
+.fleet-tab{display:flex;flex-direction:column;gap:12px}
+.miner-grid.one{grid-template-columns:minmax(0,1fr)}
+details.fold{border:1px solid var(--line);border-radius:5px;background:var(--panel-2)}
+details.fold > summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:10px 12px}
+details.fold > summary::-webkit-details-marker{display:none}
+details.fold > summary::before{content:"";flex:none;width:0;height:0;border-left:6px solid var(--muted);border-top:4.5px solid transparent;border-bottom:4.5px solid transparent;transition:transform .15s;align-self:center}
+details.fold[open] > summary::before{transform:rotate(90deg)}
+details.fold > summary h3{font-size:16px;text-transform:uppercase;letter-spacing:.07em}
+details.fold > summary .sum{font-size:13px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+details.fold > summary .sum b{color:var(--accent);font-weight:600}
+.fold-body{padding:0 12px 12px;display:flex;flex-direction:column;gap:10px}
+details.fold details.fold{background:var(--panel)}
+details.fold details.fold details.fold{background:var(--panel-2)}
+textarea.mono{font-family:var(--f-mono);font-size:12px;resize:vertical;white-space:pre;overflow:auto}
+.scan-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.scan-actions .btn-primary{font-size:15px;padding:8px 14px}
+.sess-box{border:1px solid var(--line);border-radius:5px;padding:10px;background:var(--panel-2);display:flex;flex-direction:column;gap:10px}
+.sess-intro{margin:0;font-size:14px}
+.sess-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end}
+.sess-mode{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.mode-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.sess-box .is-off{opacity:.45}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;padding-bottom:6px}
+.check input{width:16px;height:16px;accent-color:var(--accent)}
+.check.unl{padding-bottom:0}
+.end-info{display:flex;flex-direction:column;gap:1px;font-size:13px;padding-bottom:4px;color:var(--muted)}
+.end-info b{font-family:var(--f-mono);font-size:15px;font-weight:600;color:var(--fg)}
+.sess-help{margin:0;padding-left:18px;font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.sess-help b{color:var(--fg);font-weight:600}
+.sess-sum{font-size:13px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.sess-sum b{color:var(--accent);font-weight:600}
+.share-row{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}
+.share-target{font-size:13px;color:var(--muted);padding-bottom:7px}
+.share-target b{font-family:var(--f-mono);color:var(--fg);font-weight:600}
+.mkt{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--warn);border:1px solid var(--warn);border-radius:3px;padding:0 4px;margin-left:6px;vertical-align:1px}
+.warnsum{color:var(--warn)}
+.give td.units{font-weight:600;color:var(--accent)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{border:1px solid var(--line);border-radius:5px;padding:10px 12px;background:var(--panel);display:flex;flex-direction:column;gap:2px;min-width:0}
+.tile b{font-family:var(--f-mono);font-size:20px;font-weight:500;font-variant-numeric:tabular-nums}
+.tile.lead{border-color:var(--accent)}
+.tile.lead b{color:var(--accent);font-size:22px}
+.tile > span{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.tile small{font-size:12px;color:var(--muted)}
+table.data{border-spacing:0;min-width:600px}
+table.data th{border-bottom:1px solid var(--line);padding:6px 8px}
+table.data td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px}
+table.data td:first-child{text-align:left;font-family:var(--f-body);font-size:14px}
+table.data tr.fam td{font-weight:600;background:var(--panel-2)}
+table.data tr.fam td:first-child{font-family:var(--f-display);font-size:16px;letter-spacing:.03em}
+table.data tr.grade td:first-child{padding-left:22px}
+table.data tr.total td{font-weight:600;border-top:2px solid var(--fg);border-bottom:none}
+table.data tr.grade td.hname{padding:2px 8px 2px 16px}
+table.data tr.grade.solo td.hname{padding:2px 8px 2px 4px}
+.heat{display:block;padding:3px 6px;border-radius:3px;background:rgba(var(--heat),var(--h,0))}
+.heat.best{font-weight:600;box-shadow:inset 0 0 0 1px rgba(var(--heat),.9)}
+.val{cursor:default;border-bottom:1px dotted var(--muted)}
+.share{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.bar{width:70px;height:8px;background:var(--panel-2);border:1px solid var(--line);border-radius:2px;overflow:hidden;flex:none}
+.bar i{display:block;height:100%;background:var(--accent)}
+details.sub-fold summary{cursor:pointer;font-family:var(--f-display);font-size:15px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+p.warn{font-size:13px;color:var(--warn);margin:0}
+p.note{font-size:13px;color:var(--muted);margin:0}
+
+/* ---------- update bar (shell) ---------- */
+.upd{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;padding:10px 14px;border:1px solid var(--accent);border-radius:6px;background:var(--panel);font-size:14px}
+.upd-actions{display:flex;gap:8px}
+.btn-upd{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+
 /* ---------- settings drawer ---------- */
 .scrim{position:fixed;inset:0;background:rgba(5,8,12,.45);z-index:60}
 .drawer{position:fixed;top:0;right:0;bottom:0;width:min(380px,100vw);background:var(--panel);border-left:1px solid var(--line);z-index:61;display:flex;flex-direction:column;box-shadow:-12px 0 32px rgba(0,0,0,.2);padding-top:env(safe-area-inset-top,0px)}
