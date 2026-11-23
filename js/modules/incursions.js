@@ -6,14 +6,14 @@ const KEY = "eveTools.incursions.v2";
 
 // [siteType, base ISK payout, base LP, normal grid size]
 const SITES = [
-  ["Mothership (HS)",    63000000, 14000,  80],
-  ["Mothership (LS/NS)", 90000000, 20000, 120],
-  ["HQ (HS)",            31500000,  7000,  40],
-  ["HQ (LS/NS)",         45000000, 10000,  60],
-  ["AS (HS)",            18200000,  3500,  20],
-  ["AS (LS/NS)",         26000000,  5000,  30],
-  ["VG (HS)",            10395000,  1400,  10],
-  ["VG (LS/NS)",         15000000,  2000,  15],
+  ["Mothership (HS)",        63000000, 14000,  80],
+  ["Mothership (LS/NS)",     90000000, 20000, 120],
+  ["Headquarters (HS)",      31500000,  7000,  40],
+  ["Headquarters (LS/NS)",   45000000, 10000,  60],
+  ["Assault (HS)",           18200000,  3500,  20],
+  ["Assault (LS/NS)",        26000000,  5000,  30],
+  ["Vanguard (HS)",          10395000,  1400,  10],
+  ["Vanguard (LS/NS)",       15000000,  2000,  15],
 ];
 
 // Payout reduction when the site is overgridded (more pilots than normal)
