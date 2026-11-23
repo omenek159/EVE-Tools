@@ -9,4 +9,6 @@
 # Keep the price cache private.
 <IfModule mod_alias.c>
   RedirectMatch 404 ^/(.*/)?cache/
+  # Deploy bookkeeping written by the GitHub Actions FTP upload.
+  RedirectMatch 404 \.ftp-deploy-sync-state\.json$
 </IfModule>

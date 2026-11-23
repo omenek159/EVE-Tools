@@ -1,0 +1,72 @@
+# Deploys the app to the PHP server over FTP(S) on every push.
+#   push to `test` -> test instance (folder in variable FTP_DIR_TEST)
+#   push to `main` -> live instance (folder in variable FTP_DIR_LIVE)
+#
+# Setup (GitHub repo -> Settings -> Secrets and variables -> Actions):
+#   Secrets:   FTP_SERVER (host name only, e.g. ftp.example.com), FTP_USERNAME, FTP_PASSWORD
+#   Variables: FTP_DIR_TEST, FTP_DIR_LIVE (server folders, ending in "/", e.g. /public_html/eve-tools-test/)
+#              FTP_PROTOCOL (optional: "ftps" (default) or "ftp")
+#
+# Only changed files are uploaded (the action keeps .ftp-deploy-sync-state.json in the target folder).
+# js/version.js is uploaded last, so open pages offer the reload only once every other file is in place.
+# cache/ on the server is never touched.
+
+name: Deploy
+
+on:
+  push:
+    branches: [test, main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SERVER_DIR: ${{ github.ref_name == 'main' && vars.FTP_DIR_LIVE || vars.FTP_DIR_TEST }}
+      PROTOCOL: ${{ vars.FTP_PROTOCOL || 'ftps' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check settings
+        run: |
+          if [ -z "$SERVER_DIR" ]; then
+            echo "::error::Set the repository variable FTP_DIR_TEST / FTP_DIR_LIVE first."
+            exit 1
+          fi
+          case "$SERVER_DIR" in */) ;; *) echo "::error::FTP_DIR_* must end with /"; exit 1;; esac
+          echo "Deploying ${{ github.ref_name }} to $SERVER_DIR"
+
+      - name: Upload changed files (except js/version.js)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ${{ env.PROTOCOL }}
+          server-dir: ${{ env.SERVER_DIR }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .github/**
+            .vscode/**
+            .claude/**
+            cache/**
+            CLAUDE.md
+            README.md
+            js/version.js
+
+      - name: Upload js/version.js last
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          tls=""
+          [ "$PROTOCOL" = "ftps" ] && tls="--ssl-reqd"
+          curl --fail --silent --show-error $tls --ftp-create-dirs \
+            --user "$FTP_USERNAME:$FTP_PASSWORD" \
+            -T js/version.js "ftp://$FTP_SERVER${SERVER_DIR}js/version.js"
