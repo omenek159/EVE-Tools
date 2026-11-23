@@ -91,10 +91,9 @@ resets.addEventListener("click", async e => {
 });
 
 /* ---------- update check ----------
-   prices.php?version=1 reports the APP_VERSION on the server (read from js/version.js). When it is newer than
-   the one this page loaded, offer a reload. Where there is no prices.php (claude.ai artifact, static hosting),
-   the first failed check stops it for good. */
-const VERSION_URL = new URL("../prices.php?version=1", import.meta.url);
+   Re-read js/version.js from the server, bypassing the browser cache. When its APP_VERSION is newer than the one
+   this page loaded, offer a reload. Works on any host (PHP server, GitHub Pages, claude.ai artifact). */
+const VERSION_URL = new URL("./version.js", import.meta.url);
 const SHELL_FILES = ["../index.html", "../css/app.css", "./app.js", "./shared.js", "./version.js", "../data/ores.json"];
 let lastCheck = 0, checking = false, noServer = false, dismissed = 0;
 document.getElementById("appVer").textContent = APP_VERSION;
@@ -107,9 +106,10 @@ async function unsavedNotes() {
 async function checkVersion() {
   if (checking || noServer) return; checking = true; lastCheck = Date.now();
   try {
-    const r = await fetch(VERSION_URL, { cache: "no-store", headers: { Accept: "application/json" } });
-    let latest;
-    try { latest = +(await r.json()).version || 0; } catch (_) { noServer = true; return; }
+    const r = await fetch(VERSION_URL, { cache: "no-store" });
+    const m = r.ok && /APP_VERSION\s*=\s*(\d+)/.exec(await r.text());
+    if (!m) { noServer = true; return; }
+    const latest = +m[1];
     if (latest > APP_VERSION && latest !== dismissed) {
       const notes = await unsavedNotes();
       document.getElementById("updText").innerHTML = `<b>Version ${latest} is available.</b> You're using version ${APP_VERSION}. Your settings are kept${notes.length ? `, but ${notes.join(" and ")} will need to be pasted again` : ""}.`;

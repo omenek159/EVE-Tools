@@ -1,3 +1,3 @@
-// Raise APP_VERSION on every release. prices.php reads this line on the server and reports it,
-// so open pages can offer a reload when a newer version has been uploaded.
-export const APP_VERSION = 27;
+// Raise APP_VERSION on every release. Open pages re-read this file every few minutes and offer a reload
+// when the number on the server is higher than the one they loaded. (prices.php?version=1 reports it too.)
+export const APP_VERSION = 28;

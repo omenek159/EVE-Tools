@@ -1,6 +1,8 @@
 // Ore Profit Calculator module (ported from the standalone Ore Profit Calculator v26).
-// Prices come from prices.php on your own server (shared 10-minute Fuzzwork cache). Where prices.php isn't
-// available (e.g. the claude.ai artifact), Pull prices falls back to "open Fuzzwork, copy, paste".
+// The app ships without prices and loads them on first launch, trying in order:
+//   1. prices.php on your own server (shared 10-minute Fuzzwork cache),
+//   2. Fuzzwork straight from the browser (static hosting such as GitHub Pages, if Fuzzwork allows it),
+//   3. "open Fuzzwork, copy, paste" (e.g. the claude.ai artifact, which can't reach other sites).
 import { r2, nf2, nf0, isk, fullIsk, esc, showTip, hideTip, store } from "../shared.js";
 
 const KEY = "oreProfitCalc.v1";
@@ -14,7 +16,9 @@ const GAS_SECTIONS = [                 // wormhole gas first, then k-space gas
   { title: "Wormhole gas", from: 33, to: 42 },
   { title: "K-space gas", from: 42, to: 60 },
 ];
-const SYNC_EVERY = 5 * 60 * 1000;      // ask prices.php for anything newer this often
+const SYNC_EVERY = 5 * 60 * 1000;      // ask for anything newer this often
+const DIRECT_TTL = 10 * 60 * 1000;     // straight from Fuzzwork: at most once per 10 minutes per browser
+const NO_PRICES = hub => ({ source: "none", at: null, hub, data: {} });
 
 const TEMPLATE = `
   <div class="head">
@@ -173,14 +177,15 @@ const TEMPLATE = `
   <footer class="note">
     Income = fleet yield (m³/s) × 3600 × ISK per m³. ISK per m³ = unit price ÷ raw ore volume, rounded to 0.01, so compressed and raw compare on the same mined m³.
     Miner yield = module yield × (1 + crit chance % × crit bonus %) + drone yield. Gas uses the huffer yield. Belt value = units × unit price; time to clear and session cargo use the fleet yield.
-    Prices: Fuzzwork market aggregates, through prices.php (refreshed at most every 10 minutes) or pasted by hand.
+    Prices: Fuzzwork market aggregates, loaded on first launch through prices.php (shared copy, refreshed at most every 10 minutes), straight from Fuzzwork, or pasted by hand.
   </footer>`;
 
 /* ---------- module state ---------- */
-let DATA, S, $, $$, init;
+let DATA, S, $, $$, init, syncNow;
 let belt = null;              // {rocks, unknown} from the last Calculate; never saved
 let cargo = null;             // {items, skipped} from the last Add cargo; never saved
-let lastSync = 0, syncing = false, noBackend = false;
+let lastSync = 0, syncing = false;
+let backend = null;           // where prices come from: "php" | "direct" | "none" (paste only); null = not tried yet
 let BY_NAME, CARGO_NAMES;
 
 function defaults() {
@@ -188,10 +193,9 @@ function defaults() {
     miners: DATA.miners.slice(0, 1).map((m, i) => ({ name: "Miner " + (i + 1), mod: m[0], crit: +(m[1] * 100).toFixed(4), mul: +(m[2] * 100).toFixed(2), drone: m[3], on: true })),
     huffers: [{ name: "Huffer 1", mod: DATA.huff, on: true }], fleetTab: "ore",
     hub: "station:60003760", jitaDefault: true, critPct: true, basis: "sellPct", unit: "h",
-    prices: { source: "sheet", at: null, hub: "region:10000002", data: snapshot() },
+    prices: NO_PRICES("station:60003760"),
   };
 }
-function snapshot() { const o = {}; for (const [id, v] of Object.entries(DATA.snap)) o[id] = { sell: { percentile: v } }; return o; }
 function loadState() {
   const stored = store.getJSON(KEY, null);
   S = Object.assign(defaults(), stored || {});
@@ -202,6 +206,8 @@ function loadState() {
   delete S.huff;
   // Crit bonus used to be stored as a factor (2.4); it is now a percent (240) like the game shows.
   if (stored && !stored.critPct) { (S.miners || []).forEach(m => { if (+m.mul > 0 && +m.mul <= 20) m.mul = +(m.mul * 100).toFixed(2); }); S.critPct = true; }
+  // Older versions shipped snapshot prices from a spreadsheet; drop them so fresh prices load on first launch.
+  if (!S.prices || S.prices.source === "sheet") S.prices = NO_PRICES(S.hub);
   S.sess = Object.assign({ h: 1, m: 0, best: false, pct: 5, mode: "dur", end: "", unlimited: false }, S.sess || {});
 }
 const save = () => store.setJSON(KEY, S);
@@ -403,6 +409,7 @@ export async function mount(el) {
     const fy = fleetYield(), unit = S.unit, q = ($("filter").value || "").trim().toLowerCase();
     const val = c => unit === "h" ? c.cH : c.cM3;
     const fmt = v => unit === "h" ? isk(v) : (v == null ? "—" : nf2.format(v));
+    const none = S.prices.source === "none" ? "—" : "no orders";
     CELLS.clear();
     let html = "";
     for (const sec of SECTIONS) {
@@ -424,7 +431,7 @@ export async function mount(el) {
           const h = v == null || v <= 0 ? 0 : (0.04 + 0.5 * (v / max)).toFixed(3);
           const rawWins = c.rM3 != null && c.cM3 != null && c.rM3 > c.cM3 * 1.05;
           const cls = ["cell", v == null || v <= 0 ? "none" : "", v != null && v > 0 && v >= minTop ? "best" : "", rawWins ? "rawwins" : ""].join(" ");
-          html += `<td class="cellwrap"><button type="button" class="${cls}" style="--h:${h}" data-key="${key}" aria-label="${esc(c.name)}">${v == null || v <= 0 ? "no orders" : fmt(v)}</button></td>`;
+          html += `<td class="cellwrap"><button type="button" class="${cls}" style="--h:${h}" data-key="${key}" aria-label="${esc(c.name)}">${v == null || v <= 0 ? none : fmt(v)}</button></td>`;
         }
         html += `</tr>`;
       }
@@ -443,7 +450,7 @@ export async function mount(el) {
         const h = v == null || v <= 0 ? 0 : (0.04 + 0.5 * (v / gmax)).toFixed(3);
         gh += `<tr class="${hide ? "hidden" : ""}"><td class="name">${esc(c.name)}</td>
           <td class="n">${c.rp == null ? "—" : nf2.format(c.rp)}</td>
-          <td class="cellwrap"><span class="cell ${v == null || v <= 0 ? "none" : ""}" style="--h:${h}">${v == null || v <= 0 ? "no orders" : unit === "h" ? isk(v) : nf2.format(v)}</span></td></tr>`;
+          <td class="cellwrap"><span class="cell ${v == null || v <= 0 ? "none" : ""}" style="--h:${h}">${v == null || v <= 0 ? none : unit === "h" ? isk(v) : nf2.format(v)}</span></td></tr>`;
       }
     }
     $("gas").innerHTML = gh;
@@ -485,21 +492,21 @@ export async function mount(el) {
 
   function renderStatus() {
     const dot = $("statusDot"), t = $("statusText"), p = S.prices;
-    if (p.source === "sheet") {
-      dot.className = "dot old";
-      t.innerHTML = `Showing prices cached in your spreadsheet (The Forge, sell 5th percentile).${S.basis !== "sellPct" ? " Pull prices to use this basis." : ""}`;
+    if (p.source === "none") {
+      dot.className = "dot err";
+      t.innerHTML = backend === "none" ? "No prices yet. Paste them from Fuzzwork below." : "No prices yet. Loading them…";
       return;
     }
     const age = (Date.now() - p.at) / 36e5;
     dot.className = "dot " + (age > 6 ? "old" : "ok");
     const when = new Date(p.at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
     if (p.hub !== S.hub) {
-      t.innerHTML = noBackend ? `Showing ${esc(HUBNAME(p.hub))} prices. Pull prices to get ${esc(HUBNAME(S.hub))}.` : `Loading ${esc(HUBNAME(S.hub))} prices…`;
+      t.innerHTML = backend === "none" ? `Showing ${esc(HUBNAME(p.hub))} prices. Pull prices to get ${esc(HUBNAME(S.hub))}.` : `Loading ${esc(HUBNAME(S.hub))} prices…`;
       return;
     }
     t.innerHTML = p.source === "paste"
       ? `${esc(HUBNAME(p.hub))}, ${Object.keys(p.data).length} items. Pasted from Fuzzwork, ${esc(when)}.`
-      : `${esc(HUBNAME(p.hub))}, ${Object.keys(p.data).length} items. Prices from Fuzzwork, ${esc(when)}. They refresh automatically every ${Math.round((p.ttl || 600) / 60)} minutes.`;
+      : `${esc(HUBNAME(p.hub))}, ${Object.keys(p.data).length} items. Prices from Fuzzwork${p.source === "direct" ? "" : " via your server"}, ${esc(when)}. They refresh automatically every ${Math.round((p.ttl || 600) / 60)} minutes.`;
   }
   function acceptPrices(res, source = "fuzzwork") {
     const json = res && res.data, keys = Object.keys(json || {});
@@ -525,18 +532,42 @@ export async function mount(el) {
     return json;
   }
 
+  // Straight from Fuzzwork. A plain GET with no custom headers, so the browser sends no CORS preflight.
+  async function requestDirect() {
+    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 20000);
+    try {
+      const r = await fetch(fwUrl(), { signal: ctl.signal, cache: "no-store" });
+      if (!r.ok) throw new Error(`Fuzzwork answered with HTTP ${r.status}.`);
+      return { data: await r.json(), fetchedAt: Math.floor(Date.now() / 1000), market: S.hub, ttl: DIRECT_TTL / 1000 };
+    } finally { clearTimeout(to); }
+  }
+  // Try the sources in order and remember the first that works. Throws .noSource when only pasting is left.
+  async function fetchPrices(since) {
+    if (backend === null || backend === "php") {
+      try { const j = await requestServer(since); backend = "php"; return { res: j, source: "fuzzwork" }; }
+      catch (e) { if (backend === "php" || !(e.noBackend || e instanceof TypeError)) throw e; }
+    }
+    if (backend === null || backend === "direct") {
+      try { const j = await requestDirect(); backend = "direct"; return { res: j, source: "direct" }; }
+      catch (e) { if (backend === "direct") throw e; }
+    }
+    backend = "none";
+    const e = new Error("no price source"); e.noSource = true; throw e;
+  }
+
   const pullErr = $("pullErr"), pastePanel = $("pastePanel"), pasteMsg = $("pasteMsg"), pasteBox = $("pasteBox");
-  function showPaste() { pastePanel.hidden = false; pasteMsg.textContent = ""; pasteMsg.className = "msg"; updateLink(); pasteBox.focus(); }
+  function showPaste(focus = true) { pastePanel.hidden = false; pasteMsg.textContent = ""; pasteMsg.className = "msg"; updateLink(); renderStatus(); if (focus) pasteBox.focus(); }
   $("pull").addEventListener("click", async () => {
     const btn = $("pull"); btn.disabled = true; btn.textContent = "Pulling…"; pullErr.hidden = true;
+    if (backend === "none") backend = null;               // the button tries every source again
     try {
-      const json = await requestServer(0);                // the button always takes the full prices
-      lastSync = Date.now(); noBackend = false; pastePanel.hidden = true;
-      try { acceptPrices(json); } catch (_) { throw new Error("The price data had no prices for these items."); }
+      const { res, source } = await fetchPrices(0);       // the button always takes the full prices
+      lastSync = Date.now(); pastePanel.hidden = true;
+      try { acceptPrices(res, source); } catch (_) { throw new Error("The price data had no prices for these items."); }
     } catch (e) {
-      if (e.noBackend || e instanceof TypeError) { noBackend = !!e.noBackend || noBackend; showPaste(); }
+      if (e.noSource) showPaste();
       else {
-        pullErr.textContent = e.name === "AbortError" ? "The server didn't answer within 20 seconds. Try again." : e.message;
+        pullErr.textContent = e.name === "AbortError" ? "No answer within 20 seconds. Try again." : e instanceof TypeError ? "Couldn't reach the price server. Check your connection and try again." : e.message;
         pullErr.hidden = false;
       }
     } finally { btn.disabled = false; btn.textContent = "Pull prices"; }
@@ -558,17 +589,21 @@ export async function mount(el) {
     setTimeout(() => e.target.textContent = "Copy link", 1500);
   });
 
-  // Every 5 minutes, and when the tab is shown again, ask prices.php for anything newer. It returns the prices only
-  // when its shared copy (refreshed from Fuzzwork at most every 10 minutes) is newer than ours. Errors are silent
-  // here; the Pull prices button reports them. Stops for good once it's clear there is no prices.php.
+  // On launch, every 5 minutes, and when the tab is shown again, look for newer prices. prices.php returns them only
+  // when its shared copy (refreshed from Fuzzwork at most every 10 minutes) is newer than ours; straight from
+  // Fuzzwork, at most every 10 minutes. Errors are silent here; the Pull prices button reports them. With no
+  // source left but pasting, it stops, and opens the paste box if there are no prices at all.
   async function serverSync() {
-    if (syncing || noBackend) return; syncing = true; lastSync = Date.now();
+    if (syncing || backend === "none") return; syncing = true; lastSync = Date.now();
     try {
-      const have = S.prices.source === "fuzzwork" && S.prices.hub === S.hub ? Math.floor(S.prices.at / 1000) : 0;
-      const json = await requestServer(have);
-      if (json.data) acceptPrices(json);
-    } catch (e) { if (e.noBackend) { noBackend = true; renderStatus(); } }
-    finally { syncing = false; }
+      const sameHub = S.prices.hub === S.hub;
+      if (backend === "direct" && S.prices.source === "direct" && sameHub && Date.now() - S.prices.at < DIRECT_TTL) return;
+      const have = S.prices.source === "fuzzwork" && sameHub ? Math.floor(S.prices.at / 1000) : 0;
+      const { res, source } = await fetchPrices(have);
+      if (res.data) acceptPrices(res, source);
+    } catch (e) {
+      if (e.noSource) { renderStatus(); if (S.prices.source === "none") showPaste(false); }
+    } finally { syncing = false; }
   }
   setInterval(serverSync, SYNC_EVERY);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastSync > 2 * 60 * 1000) serverSync(); });
@@ -618,7 +653,7 @@ export async function mount(el) {
       unpriced.push(it.name); return null;
     }).filter(Boolean);
     const estTotal = items.reduce((a, x) => a + x.unit * x.avail, 0);
-    const priceWarn = (marketUsed.length ? `<p class="warn">No estimated value in the paste for ${marketUsed.map(esc).join(", ")}, so the market price is used instead (${esc(HUBNAME(S.prices.hub || S.hub))}, ${esc(basisEl.selectedOptions[0].textContent.toLowerCase())}${S.prices.source === "sheet" ? ", cached from your spreadsheet" : ""}). Paste from list view to use the game's estimate.</p>` : "")
+    const priceWarn = (marketUsed.length ? `<p class="warn">No estimated value in the paste for ${marketUsed.map(esc).join(", ")}, so the market price is used instead (${esc(HUBNAME(S.prices.hub || S.hub))}, ${esc(basisEl.selectedOptions[0].textContent.toLowerCase())}). Paste from list view to use the game's estimate.</p>` : "")
       + (unpriced.length ? `<p class="warn">No estimated value and no market price for ${unpriced.map(esc).join(", ")}; left out of the share.</p>` : "");
     if (!items.length) { sum.textContent = "no prices for this hold"; tgt.textContent = ""; out.innerHTML = priceWarn; return; }
     const target = estTotal * pct / 100;
@@ -816,7 +851,7 @@ export async function mount(el) {
         <div class="tile"><span>Time to clear</span><b>${dur(clearH)}</b><small>at ${yieldTxt}</small></div>
         <div class="tile"><span>Scanner estimate</span><b>${isk(tot.scan)}</b><small>the game's own valuation</small></div>
       </div>
-      ${S.prices.source === "sheet" ? `<p class="warn">Using the prices cached from your spreadsheet. Press Pull prices for current ones.</p>` : ""}
+      ${S.prices.source === "none" ? `<p class="warn">No prices loaded yet, so values show as 0. Press Pull prices.</p>` : ""}
       ${tot.missC ? `<p class="warn">${tot.missC} rock${tot.missC > 1 ? "s have" : " has"} no price on this market and count as 0.</p>` : ""}
       ${unk.length ? `<p class="warn">Not recognised and left out: ${unk.map(([n, c]) => `${esc(n)} (${c})`).join(", ")}.</p>` : ""}
       <details class="sub-fold" id="byOre"${byOpen ? " open" : ""}><summary>Value by ore and grade</summary>
@@ -877,16 +912,17 @@ export async function mount(el) {
     syncUnit(); updateLink(); applyMode(); applyFleetTab();
     renderMiners(); renderHuffers(); renderStatus(); renderTables();
   };
+  syncNow = serverSync;
   init();
-  setTimeout(serverSync, 1500);
+  serverSync();
 }
 
 /** Called by Settings → reset after the module's saved data was removed. */
 export function reset() {
   if (!init) return;
-  loadState(); belt = null; cargo = null;
+  loadState(); backend = null; belt = null; cargo = null;
   $("scan").value = ""; $("cargo").value = "";
-  init();
+  init(); syncNow();
 }
 
 /** For the update bar: what would be lost by reloading the page now. */

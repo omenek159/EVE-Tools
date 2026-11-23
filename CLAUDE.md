@@ -8,8 +8,8 @@ Multipurpose web app for EVE Online: a set of calculators behind one shell (head
 index.html               shell only: header, menu container, update bar, settings drawer, #views, #tip
 css/app.css              all styles; theme tokens at the top (light + dark)
 js/app.js                MODULES registry, menu, hash routing, lazy loading, settings, update check
-js/version.js            APP_VERSION — raise it on every release
-prices.php               Fuzzwork price proxy with a shared 10-min cache (cache/), and the version endpoint
+js/version.js            APP_VERSION — raise it on every release; open pages poll this file for the update bar
+prices.php               Fuzzwork price proxy with a shared 10-min cache (cache/)
 .htaccess                Apache: no-cache revalidation for html/js/css/json, hides cache/
 js/shared.js             formatting (isk, nf0, nf2, r2), esc, tooltip (showTip/hideTip), store
 js/modules/<tool>.js     one file per tool
@@ -37,10 +37,15 @@ data/*.json              static data a module fetches
 
 ## Hosting
 
-Two targets; every change must work on both.
+Every change must work on all three.
 
-1. **Own PHP server (main).** Upload the repo (not `cache/`). Needs PHP 7.4+ with curl or allow_url_fopen, and a writable folder next to `prices.php` for `cache/`. The Ore module syncs prices from `prices.php` every 5 minutes; the shell polls `prices.php?version=1` and shows the update bar when `js/version.js` on the server is newer than the loaded page.
-2. **claude.ai artifact (secondary).** No PHP there: `prices.php` 404s, auto-sync and the update check stop after the first failure, and Pull prices falls back to "open Fuzzwork, copy, paste". Keep that fallback. Don't publish `prices.php`/`.htaccess` to the artifact.
+1. **Own PHP server (main).** Upload the repo (not `cache/`). Needs PHP 7.4+ with curl or allow_url_fopen, and a writable folder next to `prices.php` for `cache/`.
+2. **Static hosting, e.g. GitHub Pages.** No PHP: `prices.php` is served as text or 404s, so the Ore module asks Fuzzwork straight from the browser (plain GET, no custom headers — that would trigger a CORS preflight). If Fuzzwork refuses, it falls back to pasting.
+3. **claude.ai artifact.** No PHP and no requests to other sites: Pull prices falls back to "open Fuzzwork, copy, paste". Keep that fallback. Don't publish `prices.php`/`.htaccess` to the artifact.
+
+**Prices:** the app ships with no prices (`data/ores.json` has none — keep it that way). The Ore module loads them on first launch and every 5 minutes after, trying prices.php → Fuzzwork directly → paste, and remembers the first source that works for the session. Prices are kept in each visitor's browser; nothing ever writes back into the site's files.
+
+**Update bar:** the shell re-reads `js/version.js` (no-store) every 5 minutes and when the tab comes back; if its APP_VERSION is higher than the loaded one, it offers a reload.
 
 **Releasing:** raise `APP_VERSION` in `js/version.js` with every change that should reach open pages.
 
@@ -53,7 +58,7 @@ Artifact constraints (keep the page valid for both):
 
 ## Tools and sources
 
-- **Ore prices** (`ore.js`, `data/ores.json`): port of the standalone Ore Profit Calculator v26. ISK/h per ore grade (compressed vs raw) and gas; fleet of miners (module yield, crit chance %, crit bonus %, drones) and gas huffers; mining session: cargo-hold paste, share of the hold paid in cheapest ore, mining-scanner paste for belt value, session estimate by duration / end time / until empty. Prices from Fuzzwork market aggregates via `prices.php`; `ores.json` holds type IDs, volumes (`fam`: [name, rawId, rawVol, compressedId, compressedVol]), a snapshot price set and default fleet. Saved state key `oreProfitCalc.v1` (shared with the standalone page; keep its migrations).
+- **Ore prices** (`ore.js`, `data/ores.json`): port of the standalone Ore Profit Calculator v26. ISK/h per ore grade (compressed vs raw) and gas; fleet of miners (module yield, crit chance %, crit bonus %, drones) and gas huffers; mining session: cargo-hold paste, share of the hold paid in cheapest ore, mining-scanner paste for belt value, session estimate by duration / end time / until empty. Prices from Fuzzwork market aggregates (see Hosting). `ores.json` holds only static game data: the ore list (`fam`: [name, rawId, rawVol, compressedId, compressedVol]) and the default fleet (`miners`, `huff`) — no prices. Saved state key `oreProfitCalc.v1` (shared with the standalone page; keep its migrations).
 - **Incursions** (`incursions.js`): ISK/h from pasted wallet journal. Logic ported from TLA waitlist `frontend/src/Pages/ISKh.js` (MIT, github.com/luna-duclos/tla-waitlist). Overgrid factor `1 − 0.0725n − 0.0025n²`.
 - **Reprocessing**: planned (shown as "soon" in the menu).
 
