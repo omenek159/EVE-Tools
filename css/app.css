@@ -25,7 +25,8 @@ body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14
 .appbar{background:var(--hdr);color:var(--hdr-fg);padding-top:env(safe-area-inset-top,0px)}
 .appbar .inner{display:flex;align-items:center;gap:14px;height:60px}
 .logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit}
-.logo-ph{width:40px;height:40px;border:1.5px dashed var(--hdr-muted);border-radius:6px;display:grid;place-items:center;font-family:var(--f-mono);font-size:9px;letter-spacing:.08em;color:var(--hdr-muted)}
+.logo-mark{width:40px;height:40px;flex:none;color:var(--hdr-fg)}
+.logo-mark .acc{fill:var(--accent)}
 .logo-name{font-family:var(--f-display);font-size:22px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .logo-name span{color:var(--accent)}
 .logo-by{margin-left:3px;font-family:var(--f-body);font-size:10.5px;font-weight:500;letter-spacing:.02em;text-transform:none;color:var(--hdr-muted)}

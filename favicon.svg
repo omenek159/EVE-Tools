@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <!-- EVE Tools tab icon: the header logo without the letters (too small to read at 16 px). Follows the browser's light/dark theme. -->
+  <style>
+    .fg{fill:#17202a;stroke:#17202a} .acc{fill:#b5620c}
+    @media (prefers-color-scheme: dark){ .fg{fill:#eef2f5;stroke:#eef2f5} .acc{fill:#e39a45} }
+  </style>
+  <polygon class="fg" points="20,2.5 35.2,11.25 35.2,28.75 20,37.5 4.8,28.75 4.8,11.25" fill="none" style="fill:none" stroke-width="2.6" stroke-linejoin="round"/>
+  <rect class="fg" x="11.2" y="21" width="4.8" height="7.5" rx="1" stroke="none" opacity=".55"/>
+  <rect class="fg" x="17.6" y="15" width="4.8" height="13.5" rx="1" stroke="none" opacity=".8"/>
+  <rect class="acc" x="24" y="9" width="4.8" height="19.5" rx="1"/>
+</svg>
