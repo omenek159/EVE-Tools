@@ -10,7 +10,6 @@ const MODULES = [
     resetLabel: "Reset ore calculator", keys: ["oreProfitCalc.v1"] },
   { id: "incursions", label: "Incursions", file: "./modules/incursions.js",
     resetLabel: "Clear pasted incursion wallet", keys: ["eveTools.incursions.v2"] },
-  { id: "reprocessing", label: "Reprocessing", soon: true },
 ];
 const LIVE = MODULES.filter(m => !m.soon);
 

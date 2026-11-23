@@ -3,7 +3,7 @@
  * EVE Tools: price and version endpoint (used by the Ore prices module and the app's update check).
  *
  * GET prices.php?market=station:60003760&types=1230,62516,...[&since=<unix seconds>]
- * GET prices.php?version=1                     -> {"version":27} only (the shell's update check)
+ * GET prices.php?version=1                     -> {"version":1} only (the shell's update check)
  *
  * Returns the Fuzzwork prices for the market. Each market's result is saved in ./cache/
  * with the time it was fetched; a copy younger than CACHE_TTL is returned without asking
@@ -16,7 +16,7 @@
  * Every reply also carries "version": the APP_VERSION line read from js/version.js next to this
  * script, so open pages can offer a reload when a newer version has been uploaded.
  *
- * Response: {"version":27,"market":"...","fetchedAt":<unix>,"cached":true|false,"ttl":600,"data":{...}}
+ * Response: {"version":1,"market":"...","fetchedAt":<unix>,"cached":true|false,"ttl":600,"data":{...}}
  * Errors:   {"error":"message","version":27} with a 4xx/5xx status
  *
  * Needs PHP 7.4+ and either the curl extension or allow_url_fopen.
