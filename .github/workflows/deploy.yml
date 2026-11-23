@@ -4,7 +4,7 @@
 #
 # Setup (GitHub repo -> Settings -> Secrets and variables -> Actions):
 #   Secrets:   FTP_SERVER (host name only, e.g. ftp.example.com), FTP_USERNAME, FTP_PASSWORD
-#   Variables: FTP_DIR_TEST, FTP_DIR_LIVE (server folders, ending in "/", e.g. /public_html/eve-tools-test/)
+#   Variables: FTP_DIR_TEST, FTP_DIR_LIVE (server folders, e.g. /public_html/eve-tools-test/; a missing final "/" is added)
 #              FTP_PROTOCOL (optional: "ftps" (default) or "ftp")
 #
 # Only changed files are uploaded (the action keeps .ftp-deploy-sync-state.json in the target folder).
@@ -29,7 +29,7 @@ jobs:
       SERVER_DIR: ${{ github.ref_name == 'main' && vars.FTP_DIR_LIVE || vars.FTP_DIR_TEST }}
       PROTOCOL: ${{ vars.FTP_PROTOCOL || 'ftps' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check settings
         run: |
@@ -37,7 +37,8 @@ jobs:
             echo "::error::Set the repository variable FTP_DIR_TEST / FTP_DIR_LIVE first."
             exit 1
           fi
-          case "$SERVER_DIR" in */) ;; *) echo "::error::FTP_DIR_* must end with /"; exit 1;; esac
+          case "$SERVER_DIR" in */) ;; *) SERVER_DIR="$SERVER_DIR/";; esac
+          echo "SERVER_DIR=$SERVER_DIR" >> "$GITHUB_ENV"
           echo "Deploying ${{ github.ref_name }} to $SERVER_DIR"
 
       - name: Upload changed files (except js/version.js)
