@@ -8,8 +8,7 @@ import { APP_VERSION } from "./version.js";
 const MODULES = [
   { id: "ore-prices", label: "Ore prices", file: "./modules/ore.js",
     resetLabel: "Reset ore calculator", keys: ["oreProfitCalc.v1"] },
-  { id: "incursions", label: "Incursions", file: "./modules/incursions.js",
-    resetLabel: "Clear pasted incursion wallet", keys: ["eveTools.incursions.v2"] },
+  { id: "incursions", label: "Incursions", file: "./modules/incursions.js", keys: [] },   // saves nothing
 ];
 const LIVE = MODULES.filter(m => !m.soon);
 

@@ -2,7 +2,7 @@
 // Logic rewritten from tla-waitlist frontend/src/Pages/ISKh.js (MIT, github.com/luna-duclos/tla-waitlist).
 import { isk, esc, store } from "../shared.js";
 
-const KEY = "eveTools.incursions.v2";
+const OLD_KEY = "eveTools.incursions.v2";   // earlier versions saved the pasted journal here; removed on load
 
 // [siteType, base ISK payout, base LP, normal grid size]
 const SITES = [
@@ -97,7 +97,7 @@ const TEMPLATE = `
         <h2 id="h-wallet">Paste wallet</h2>
         <span class="sub">In game, open your wallet journal, select the incursion payouts, press Ctrl+C and paste here. English client only.</span>
         <label class="fld">Wallet journal lines
-          <textarea id="wallet" spellcheck="false" class="wallet-box"></textarea>
+          <textarea id="wallet" spellcheck="false" autocomplete="off" class="wallet-box"></textarea>
         </label>
         <div class="toolbar">
           <button class="btn" id="btnClear" type="button">Clear</button>
@@ -184,15 +184,15 @@ export function mount(el) {
     st.textContent = d ? `${n} payout line${n === 1 ? "" : "s"} found` : (wallet.value.trim() ? "No usable payouts yet" : "");
     renderResult(d); renderLog(d);
   };
-  wallet.addEventListener("input", () => { store.set(KEY, wallet.value); update(); });
-  $("btnClear").addEventListener("click", () => { wallet.value = ""; store.remove(KEY); update(); wallet.focus(); });
+  wallet.addEventListener("input", update);   // the pasted journal is kept only while the page is open, never saved
+  $("btnClear").addEventListener("click", () => { wallet.value = ""; update(); wallet.focus(); });
 
-  wallet.value = store.get(KEY, "");
+  store.remove(OLD_KEY);
+  wallet.value = "";
   update();
 }
 
-export function reset() {
-  if (!$) return;
-  $("wallet").value = "";
-  update();
+/** For the update bar: what would be lost by reloading the page now. */
+export function unsavedNote() {
+  return $ && $("wallet").value.trim() ? "pasted wallet journal" : null;
 }

@@ -9,7 +9,7 @@ index.html               shell only: header, menu container, update bar, setting
 css/app.css              all styles; theme tokens at the top (light + dark)
 js/app.js                MODULES registry, menu, hash routing, lazy loading, settings, update check
 js/version.js            APP_VERSION "MAJOR.MINOR" — raise it on every release; open pages poll this file for the update bar
-prices.php               Fuzzwork price proxy with a shared 10-min cache (cache/)
+prices.php               Fuzzwork price proxy; shared cache (cache/) refreshed when Fuzzwork publishes a new orderset
 .htaccess                Apache: no-cache revalidation for html/js/css/json, hides cache/
 js/shared.js             formatting (isk, nf0, nf2, r2), esc, tooltip (showTip/hideTip), store
 js/modules/<tool>.js     one file per tool
