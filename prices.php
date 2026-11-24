@@ -152,7 +152,7 @@ $data = ($body !== false && $status === 200) ? json_decode($body, true) : null;
 if (!is_array($data) || !$data) {
     // Fuzzwork is down or slow: fall back to the last saved copy, however old.
     if (covers($c, $types)) send($c, $market, true, $since, $types);
-    fail(502, 'Fuzzwork didn\'t return prices' . ($status ? " (HTTP $status)" : '') . '. Try again in a minute.');
+    fail(502, 'Fuzzwork didn\'t return prices' . ($status ? " (HTTP $status)" : '') . '.');
 }
 
 $c = ['fetchedAt' => time(), 'types' => $fetchKey, 'data' => trimPrices($data)];

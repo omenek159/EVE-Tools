@@ -47,9 +47,8 @@ const TEMPLATE = `
             </select>
           </label>
         </div>
-        <button class="btn btn-primary" id="pull" type="button">Pull prices</button>
         <div class="status"><span class="dot" id="statusDot"></span><span id="statusText"></span></div>
-        <div class="msg err" id="pullErr" role="alert" hidden></div>
+        <div class="msg err" id="priceErr" role="alert" hidden><span id="priceErrText"></span> <button class="btn-link" id="priceRetry" type="button">Try again</button></div>
       </section>
 
       <section class="panel" aria-labelledby="h-fleet">
@@ -171,7 +170,9 @@ const TEMPLATE = `
 let DATA, S, $, $$, init, syncNow;
 let belt = null;              // {rocks, unknown} from the last Calculate; never saved
 let cargo = null;             // {items, skipped} from the last Add cargo; never saved
-let lastSync = 0, syncing = false;
+let lastSync = 0, syncing = false, pending = false;   // pending: another check was asked for while one was running
+let retryStep = 0, retryTimer = null;                  // automatic retries after a failed check
+const RETRY_MIN = [1, 2, 5];                           // minutes to wait after the 1st, 2nd, 3rd+ failure in a row
 let noServer = false;         // prices.php isn't available here: stop syncing, say so
 let BY_NAME, CARGO_NAMES;
 
@@ -479,7 +480,8 @@ export async function mount(el) {
     const dot = $("statusDot"), t = $("statusText"), p = S.prices;
     if (p.source === "none") {
       dot.className = "dot err";
-      t.innerHTML = noServer ? "No prices: prices.php isn't available here. Open EVE Tools on your PHP server." : "No prices yet. Loading them…";
+      t.innerHTML = noServer ? "No prices: prices.php isn't available here. Open EVE Tools on your PHP server."
+        : $("priceErr").hidden ? "No prices yet. Loading them…" : "No prices yet.";
       return;
     }
     const age = (Date.now() - p.at) / 36e5;
@@ -515,38 +517,45 @@ export async function mount(el) {
     return json;
   }
 
-  const pullErr = $("pullErr");
+  // Errors are shown under the status line with a "Try again" link; failed checks also retry by themselves
+  // after 1, 2, then 5 minutes. A missing prices.php stops checking (until Try again).
+  const priceErr = $("priceErr");
+  function showError(text) { $("priceErrText").textContent = text; priceErr.hidden = false; renderStatus(); }
+  function clearError() { priceErr.hidden = true; retryStep = 0; }
+  const errText = e => e.name === "AbortError" ? "The server didn't answer within 20 seconds."
+    : e instanceof TypeError ? "Couldn't reach your server. Check your connection."
+    : e.message === "shape" ? "The price data had no prices for these items." : e.message;
   function serverMissing() {
     noServer = true; renderStatus();
-    pullErr.textContent = "prices.php isn't available here. EVE Tools loads prices only through prices.php, so open it on your PHP server.";
-    pullErr.hidden = false;
+    showError("prices.php isn't available here. EVE Tools loads prices only through prices.php, so open it on your PHP server.");
   }
-  $("pull").addEventListener("click", async () => {
-    const btn = $("pull"); btn.disabled = true; btn.textContent = "Pulling…"; pullErr.hidden = true;
-    try {
-      const json = await requestServer(0);                // the button always takes the full prices
-      lastSync = Date.now(); noServer = false;
-      try { acceptPrices(json); } catch (_) { throw new Error("The price data had no prices for these items."); }
-    } catch (e) {
-      if (e.noServer) serverMissing();
-      else {
-        pullErr.textContent = e.name === "AbortError" ? "The server didn't answer within 20 seconds. Try again." : e instanceof TypeError ? "Couldn't reach your server. Check your connection and try again." : e.message;
-        pullErr.hidden = false;
-      }
-    } finally { btn.disabled = false; btn.textContent = "Pull prices"; }
-  });
+  $("priceRetry").addEventListener("click", () => { noServer = false; retryStep = 0; serverSync(); });
 
-  // On launch, every 5 minutes, and when the tab is shown again, ask prices.php for anything newer. It returns the
-  // prices only when its shared copy (refreshed from Fuzzwork at most every 10 minutes) is newer than ours.
-  // Errors are silent here (the Pull prices button reports them), except a missing prices.php, which stops syncing.
+  // On launch, every 5 minutes, when the tab is shown again and when the market changes, ask prices.php for anything
+  // newer. It returns the prices only when its shared copy (refreshed from Fuzzwork at most every 10 minutes) is newer
+  // than ours. A check asked for while one is running (e.g. the market changed) runs as soon as that one ends.
   async function serverSync() {
-    if (syncing || noServer) return; syncing = true; lastSync = Date.now();
+    if (noServer) return;
+    if (syncing) { pending = true; return; }
+    syncing = true; pending = false; lastSync = Date.now();
+    clearTimeout(retryTimer); retryTimer = null;
+    const btn = $("priceRetry"); btn.disabled = true;
     try {
       const have = S.prices.source === "fuzzwork" && S.prices.hub === S.hub ? Math.floor(S.prices.at / 1000) : 0;
       const json = await requestServer(have);
       if (json.data) acceptPrices(json);
-    } catch (e) { if (e.noServer) serverMissing(); }
-    finally { syncing = false; }
+      clearError();
+    } catch (e) {
+      if (e.noServer) serverMissing();
+      else {
+        const wait = RETRY_MIN[Math.min(retryStep, RETRY_MIN.length - 1)]; retryStep++;
+        showError(`${errText(e)} Trying again in ${wait} minute${wait > 1 ? "s" : ""}.`);
+        retryTimer = setTimeout(serverSync, wait * 60 * 1000);
+      }
+    } finally {
+      syncing = false; btn.disabled = false;
+      if (pending) serverSync();
+    }
   }
   setInterval(serverSync, SYNC_EVERY);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastSync > 2 * 60 * 1000) serverSync(); });
@@ -794,7 +803,7 @@ export async function mount(el) {
         <div class="tile"><span>Time to clear</span><b>${dur(clearH)}</b><small>at ${yieldTxt}</small></div>
         <div class="tile"><span>Scanner estimate</span><b>${isk(tot.scan)}</b><small>the game's own valuation</small></div>
       </div>
-      ${S.prices.source === "none" ? `<p class="warn">No prices loaded yet, so values show as 0. Press Pull prices.</p>` : ""}
+      ${S.prices.source === "none" ? `<p class="warn">No prices loaded yet, so values show as 0.</p>` : ""}
       ${tot.missC ? `<p class="warn">${tot.missC} rock${tot.missC > 1 ? "s have" : " has"} no price on this market and count as 0.</p>` : ""}
       ${unk.length ? `<p class="warn">Not recognised and left out: ${unk.map(([n, c]) => `${esc(n)} (${c})`).join(", ")}.</p>` : ""}
       <details class="sub-fold" id="byOre"${byOpen ? " open" : ""}><summary>Value by ore and grade</summary>
@@ -863,7 +872,7 @@ export async function mount(el) {
 /** Called by Settings → reset after the module's saved data was removed. */
 export function reset() {
   if (!init) return;
-  loadState(); noServer = false; belt = null; cargo = null;
+  loadState(); noServer = false; belt = null; cargo = null; $("priceErr").hidden = true; retryStep = 0;
   $("scan").value = ""; $("cargo").value = "";
   init(); syncNow();
 }
