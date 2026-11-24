@@ -41,7 +41,7 @@ data/*.json              static data a module fetches
 
 **Prices:** only `prices.php` fetches prices — no direct Fuzzwork requests from the browser and no manual paste option; don't add either. The app ships with no prices (`data/ores.json` has none — keep it that way). The Ore module loads them on first launch and every 5 minutes after (only when the server's shared copy is newer). Prices are kept in each visitor's browser and in the server's `cache/`; nothing writes back into the site's files.
 
-**Deploy:** `.github/workflows/deploy.yml` uploads over FTP(S) only when run by hand (GitHub → Actions → Deploy → Run workflow). Branch `main` goes to the live site; any other branch goes to the test site (https://omenek.pl/eve_test). Pushing deploys nothing.
+**Deploy:** `.github/workflows/deploy.yml` uploads over FTP(S) only when run by hand (GitHub → Actions → Deploy → Run workflow). Branch `main` goes to the live site (https://eve.omenek.pl); any other branch goes to the test site (https://eve.omenek.pl/__test). Pushing deploys nothing.
 
 **Update bar:** the shell re-reads `js/version.js` (no-store) every 5 minutes and when the tab comes back; if its APP_VERSION is higher than the loaded one, it offers a reload.
 
