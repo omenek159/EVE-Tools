@@ -2,7 +2,7 @@
   /* Glass theme. --panel/--panel-2 are see-through (panels blur what's behind them); --surface is the near-solid
      background for things that float over content: tooltip, settings drawer, sticky table headers. */
   --bg:#eef0fa; --panel:rgba(255,255,255,.62); --panel-2:rgba(255,255,255,.55); --surface:rgba(250,251,255,.95); --fg:#1a1f36; --muted:#5b6385; --line:rgba(28,33,78,.13);
-  --accent:#0c8f7b; --cool:#3b6fd8; --accent-fg:#ffffff; --heat:12,143,123; --good:#16884f; --warn:#b4650c; --bad:#c42b3a;
+  --accent:#6d3fe0; --cool:#3b6fd8; --accent-fg:#ffffff; --heat:109,63,224; --good:#16884f; --warn:#b4650c; --bad:#c42b3a;
   --hdr:rgba(255,255,255,.6); --hdr-fg:#1a1f36; --hdr-muted:#5b6385; --hdr-line:rgba(28,33,78,.1);
   --glow:radial-gradient(1200px 700px at 10% -10%,#dccfff 0%,transparent 60%),radial-gradient(1000px 700px at 100% 10%,#c6efe8 0%,transparent 55%),radial-gradient(900px 600px at 50% 110%,#e2dbff 0%,transparent 60%);
   --shadow:0 8px 28px rgba(40,44,110,.10);
@@ -13,14 +13,14 @@
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0b0f1e; --panel:rgba(255,255,255,.055); --panel-2:rgba(255,255,255,.06); --surface:rgba(20,24,48,.94); --fg:#eef1ff; --muted:#a3a9c9; --line:rgba(255,255,255,.12);
-  --accent:#2ee6c5; --cool:#8ab4ff; --accent-fg:#02201b; --heat:46,230,197; --good:#5be08f; --warn:#ffc46b; --bad:#ff7c8a;
+  --accent:#9b6bff; --cool:#8ab4ff; --accent-fg:#12072b; --heat:155,107,255; --good:#5be08f; --warn:#ffc46b; --bad:#ff7c8a;
   --hdr:rgba(10,14,30,.6); --hdr-fg:#eef1ff; --hdr-muted:#9aa1c4; --hdr-line:rgba(255,255,255,.12);
   --glow:radial-gradient(1200px 700px at 10% -10%,#3b1f7a 0%,transparent 60%),radial-gradient(1000px 700px at 100% 10%,#0e5a6b 0%,transparent 55%),radial-gradient(900px 600px at 50% 110%,#24135c 0%,transparent 60%);
   --shadow:0 8px 32px rgba(0,0,0,.25);
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0b0f1e; --panel:rgba(255,255,255,.055); --panel-2:rgba(255,255,255,.06); --surface:rgba(20,24,48,.94); --fg:#eef1ff; --muted:#a3a9c9; --line:rgba(255,255,255,.12);
-  --accent:#2ee6c5; --cool:#8ab4ff; --accent-fg:#02201b; --heat:46,230,197; --good:#5be08f; --warn:#ffc46b; --bad:#ff7c8a;
+  --accent:#9b6bff; --cool:#8ab4ff; --accent-fg:#12072b; --heat:155,107,255; --good:#5be08f; --warn:#ffc46b; --bad:#ff7c8a;
   --hdr:rgba(10,14,30,.6); --hdr-fg:#eef1ff; --hdr-muted:#9aa1c4; --hdr-line:rgba(255,255,255,.12);
   --glow:radial-gradient(1200px 700px at 10% -10%,#3b1f7a 0%,transparent 60%),radial-gradient(1000px 700px at 100% 10%,#0e5a6b 0%,transparent 55%),radial-gradient(900px 600px at 50% 110%,#24135c 0%,transparent 60%);
   --shadow:0 8px 32px rgba(0,0,0,.25);
