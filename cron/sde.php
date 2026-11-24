@@ -2,15 +2,20 @@
 /*
  * EVE Tools: SDE update job. Run by cron, never from the web (see cron/.htaccess and the check below).
  *
- *   php cron/sde.php            check for a new SDE build; download and extract it only when it changed
- *   php cron/sde.php --force    extract again even if the build hasn't changed
+ *   php sde.php <site folder>            check for a new SDE build; download and extract it only when it changed
+ *   php sde.php <site folder> --force    extract again even if the build hasn't changed
+ *
+ * <site folder> is the folder with index.html and sde.php (the instance's web root), e.g.
+ *   php /home/me/cron-live/sde.php /home/me/public_html
+ * Without it, the folder above this script is used (cron/ uploaded inside the site).
+ * The deploy workflow puts cron/ outside the web root; see .github/workflows/deploy.yml.
  *
  * CCP publishes the Static Data Export (SDE) some time after downtime when game data changed. This job
  * reads the tiny "latest" file (build number), and when the build is newer than the one already extracted
  * it downloads the JSONL zip (~100 MB), reads only the files it needs line by line, and writes:
  *
- *   cache/sde/reprocessing.json   what the Reprocessing module needs (see extractReprocessing below)
- *   cache/sde/state.json          {"build","released","checkedAt","extractedAt","error"}
+ *   <site>/cache/sde/reprocessing.json   what the Reprocessing module needs (see extractReprocessing below)
+ *   <site>/cache/sde/state.json          {"build","released","checkedAt","extractedAt","error"}
  *
  * A new file replaces the old one only after it passes checks (validateReprocessing); the previous copy
  * is kept as *.prev.json. The download and unpacked files are deleted afterwards.
@@ -22,8 +27,6 @@
 
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
-const ROOT       = __DIR__ . '/..';
-const SDE_DIR    = ROOT . '/cache/sde';
 const LATEST_URL = 'https://developers.eveonline.com/static-data/tranquility/latest.jsonl';
 const ZIP_URL    = 'https://developers.eveonline.com/static-data/tranquility/eve-online-static-data-%d-jsonl.zip';
 const USER_AGENT = 'EVE-Tools by omenek';
@@ -41,6 +44,14 @@ const T_REPRO_FACILITY = 35899;   // Standup Reprocessing Facility I: its 0.5 is
 const CAT_SKILL = 16, CAT_IMPLANT = 20, CAT_STRUCTURE = 65, CAT_STRUCTURE_MODULE = 66;
 
 $force = in_array('--force', $argv, true);
+$args = array_values(array_filter(array_slice($argv, 1), function ($a) { return strpos($a, '--') !== 0; }));
+$site = realpath($args[0] ?? __DIR__ . '/..');
+if (!$site || !is_file("$site/sde.php")) {
+    echo 'ERROR: ', $args[0] ?? dirname(__DIR__), " is not the site folder (no sde.php there).\n",
+         "Usage: php sde.php <site folder> [--force]\n";
+    exit(1);
+}
+define('SDE_DIR', "$site/cache/sde");
 
 function say(string $msg): void { echo gmdate('Y-m-d H:i:s'), ' ', $msg, PHP_EOL; }
 function readJson(string $file): ?array {

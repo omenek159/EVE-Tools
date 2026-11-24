@@ -11,7 +11,7 @@ js/app.js                MODULES registry, menu, hash routing, lazy loading, set
 js/version.js            APP_VERSION "MAJOR.MINOR" — raise it on every release; open pages poll this file for the update bar
 prices.php               Fuzzwork price proxy; shared cache (cache/) refreshed when Fuzzwork publishes a new orderset
 sde.php                  serves game data extracted from the SDE (cache/sde/<set>.json) to modules
-cron/sde.php             cron job (CLI only): downloads a new SDE build when CCP publishes one, extracts what modules need
+cron/sde.php             cron job (CLI only, deployed outside the web root): downloads a new SDE build when CCP publishes one, extracts what modules need
 .htaccess                Apache: no-cache revalidation for html/js/css/json, hides cache/
 js/shared.js             formatting (isk, nf0, nf2, r2), esc, tooltip (showTip/hideTip), store
 js/modules/<tool>.js     one file per tool
@@ -43,13 +43,13 @@ data/*.json              static data a module fetches (hand-maintained; game dat
 
 **Prices:** only `prices.php` fetches prices — no direct Fuzzwork requests from the browser and no manual paste option; don't add either. The app ships with no prices (`data/ores.json` has none — keep it that way). The server fetches new prices only when Fuzzwork has published new data (it checks Fuzzwork's orderset number at most every 2 minutes; new data comes about every 30 minutes). The Ore module loads them on first launch and checks every 2 minutes after (prices are sent only when the server's shared copy is newer). Prices are kept in each visitor's browser and in the server's `cache/`; nothing writes back into the site's files.
 
-**Cron jobs** (`cron/`, run with PHP CLI; `cron/.htaccess` and a CLI check keep them off the web):
+**Cron jobs** (`cron/`, run with PHP CLI). Deploy uploads `cron/` to its own folder outside the web roots, one per instance: `/eve_cron/` (live) and `/evetest_cron/` (test) in the FTP root (`FTP_CRON_DIR_LIVE` / `FTP_CRON_DIR_TEST` override), so each job takes the instance's folder as its first argument; without it, the folder above the script is used. `cron/.htaccess` and a CLI check keep the jobs off the web wherever they end up.
 
-- `php cron/sde.php` — every hour. Reads CCP's `latest.jsonl` (build number); only when the build changed it downloads the JSONL zip (~100 MB, needs ~700 MB free while unpacking), streams the needed files and writes `cache/sde/reprocessing.json` + `state.json`. A new file replaces the old one only after `validateReprocessing()` passes (known values confirmed in game); the previous copy is kept as `*.prev.json`. `--force` extracts again. Exits 1 and keeps the old data on any error.
+- `php <cron folder>/sde.php <site folder>` — every hour, once per instance. Reads CCP's `latest.jsonl` (build number); only when the build changed it downloads the JSONL zip (~100 MB, needs ~700 MB free while unpacking), streams the needed files and writes `cache/sde/reprocessing.json` + `state.json`. A new file replaces the old one only after `validateReprocessing()` passes (known values confirmed in game); the previous copy is kept as `*.prev.json`. `--force` extracts again. Exits 1 and keeps the old data on any error.
 - Game data that changes with patches (type materials, batch sizes, skill/rig/structure bonuses) comes from this job, not from files in the repo; nothing in `cache/` is ever committed or deployed.
 - Outgoing requests from server jobs use User-Agent `EVE-Tools by omenek`.
 
-**Deploy:** `.github/workflows/deploy.yml` uploads over FTP(S) only when run by hand (GitHub → Actions → Deploy → Run workflow). Branch `main` goes to the live site (https://eve.omenek.pl); any other branch goes to the test site (https://eve.omenek.pl/__test). Pushing deploys nothing.
+**Deploy:** `.github/workflows/deploy.yml` uploads over FTP(S) only when run by hand (GitHub → Actions → Deploy → Run workflow). Branch `main` goes to the live site (https://eve.omenek.pl); any other branch goes to the test site (https://evetest.omenek.pl). Pushing deploys nothing.
 
 **Update bar:** the shell re-reads `js/version.js` (no-store) every 5 minutes and when the tab comes back; if its APP_VERSION is higher than the loaded one, it offers a reload.
 
