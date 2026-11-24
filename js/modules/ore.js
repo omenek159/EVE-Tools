@@ -1,6 +1,6 @@
 // Ore Profit Calculator module (ported from the standalone Ore Profit Calculator v26).
 // The app ships without prices. They come only from prices.php on the same server (shared Fuzzwork cache,
-// refreshed at most every 10 minutes): loaded on first launch, then kept up to date automatically.
+// refreshed when Fuzzwork publishes new data, about every 30 minutes): loaded on first launch, then kept up to date.
 import { r2, nf2, nf0, isk, fullIsk, esc, showTip, hideTip, store } from "../shared.js";
 
 const KEY = "oreProfitCalc.v1";
@@ -14,7 +14,7 @@ const GAS_SECTIONS = [                 // wormhole gas first, then k-space gas
   { title: "Wormhole gas", from: 33, to: 42 },
   { title: "K-space gas", from: 42, to: 60 },
 ];
-const SYNC_EVERY = 5 * 60 * 1000;      // ask for anything newer this often
+const SYNC_EVERY = 2 * 60 * 1000;      // ask for anything newer this often (prices.php checks Fuzzwork at most this often too)
 const NO_PRICES = hub => ({ source: "none", at: null, hub, data: {} });
 
 const TEMPLATE = `
@@ -163,7 +163,7 @@ const TEMPLATE = `
   <footer class="note">
     Income = fleet yield (m³/s) × 3600 × ISK per m³. ISK per m³ = unit price ÷ raw ore volume, rounded to 0.01, so compressed and raw compare on the same mined m³.
     Miner yield = module yield × (1 + crit chance % × crit bonus %) + drone yield. Gas uses the huffer yield. Belt value = units × unit price; time to clear and session cargo use the fleet yield.
-    Prices: Fuzzwork market aggregates, loaded through prices.php on your server (one shared copy, refreshed at most every 10 minutes).
+    Prices: Fuzzwork market aggregates, loaded through prices.php on your server (one shared copy). Fuzzwork publishes new data about every 30 minutes; the server checks for it every 2 minutes and the page picks it up within a few minutes.
   </footer>`;
 
 /* ---------- module state ---------- */
@@ -486,17 +486,18 @@ export async function mount(el) {
     }
     const age = (Date.now() - p.at) / 36e5;
     dot.className = "dot " + (age > 6 ? "old" : "ok");
-    const when = new Date(p.at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+    const d = new Date(p.at), when = d.toLocaleString([], d.getFullYear() === new Date().getFullYear()   // year only when it isn't this one
+      ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" } : { dateStyle: "medium", timeStyle: "short" });
     if (p.hub !== S.hub) {
       t.innerHTML = noServer ? `Showing ${esc(HUBNAME(p.hub))} prices. prices.php isn't available here, so ${esc(HUBNAME(S.hub))} can't be loaded.` : `Loading ${esc(HUBNAME(S.hub))} prices…`;
       return;
     }
-    t.innerHTML = `${esc(HUBNAME(p.hub))}, ${Object.keys(p.data).length} items. Prices from Fuzzwork, ${esc(when)}. They refresh automatically every ${Math.round((p.ttl || 600) / 60)} minutes.`;
+    t.innerHTML = `${esc(HUBNAME(p.hub))}, ${Object.keys(p.data).length} items.<br>Prices updated ${esc(when)}. They refresh automatically.`;
   }
   function acceptPrices(res) {
     const json = res && res.data, keys = Object.keys(json || {});
     if (!keys.length || !keys.every(k => /^\d+$/.test(k)) || !json[keys[0]].sell) throw new Error("shape");
-    S.prices = { source: "fuzzwork", at: res.fetchedAt * 1000, cached: !!res.cached, ttl: res.ttl || 600, hub: res.market || S.hub, data: json };
+    S.prices = { source: "fuzzwork", at: res.fetchedAt * 1000, cached: !!res.cached, hub: res.market || S.hub, data: json };
     save(); renderStatus(); renderTables();
   }
 
@@ -531,8 +532,8 @@ export async function mount(el) {
   }
   $("priceRetry").addEventListener("click", () => { noServer = false; retryStep = 0; serverSync(); });
 
-  // On launch, every 5 minutes, when the tab is shown again and when the market changes, ask prices.php for anything
-  // newer. It returns the prices only when its shared copy (refreshed from Fuzzwork at most every 10 minutes) is newer
+  // On launch, every 2 minutes, when the tab is shown again and when the market changes, ask prices.php for anything
+  // newer. It returns the prices only when its shared copy (refreshed when Fuzzwork publishes new data) is newer
   // than ours. A check asked for while one is running (e.g. the market changed) runs as soon as that one ends.
   async function serverSync() {
     if (noServer) return;
@@ -558,7 +559,7 @@ export async function mount(el) {
     }
   }
   setInterval(serverSync, SYNC_EVERY);
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastSync > 2 * 60 * 1000) serverSync(); });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastSync > 60 * 1000) serverSync(); });
 
   /* ---------- cargo hold ---------- */
   function renderCargo(tipKey) {

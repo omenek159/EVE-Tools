@@ -39,7 +39,7 @@ data/*.json              static data a module fetches
 
 **PHP server only.** Upload the repo (not `cache/`). Needs PHP 7.4+ with curl or allow_url_fopen, and a writable folder next to `prices.php` for `cache/`. Static hosting (GitHub Pages) and the claude.ai artifact are not targets: without PHP the Ore module shows "prices.php isn't available here" and has no prices.
 
-**Prices:** only `prices.php` fetches prices — no direct Fuzzwork requests from the browser and no manual paste option; don't add either. The app ships with no prices (`data/ores.json` has none — keep it that way). The Ore module loads them on first launch and every 5 minutes after (only when the server's shared copy is newer). Prices are kept in each visitor's browser and in the server's `cache/`; nothing writes back into the site's files.
+**Prices:** only `prices.php` fetches prices — no direct Fuzzwork requests from the browser and no manual paste option; don't add either. The app ships with no prices (`data/ores.json` has none — keep it that way). The server fetches new prices only when Fuzzwork has published new data (it checks Fuzzwork's orderset number at most every 2 minutes; new data comes about every 30 minutes). The Ore module loads them on first launch and checks every 2 minutes after (prices are sent only when the server's shared copy is newer). Prices are kept in each visitor's browser and in the server's `cache/`; nothing writes back into the site's files.
 
 **Deploy:** `.github/workflows/deploy.yml` uploads over FTP(S) only when run by hand (GitHub → Actions → Deploy → Run workflow). Branch `main` goes to the live site (https://eve.omenek.pl); any other branch goes to the test site (https://eve.omenek.pl/__test). Pushing deploys nothing.
 
