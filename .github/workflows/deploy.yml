@@ -8,10 +8,15 @@
 #   Secrets:   FTP_SERVER (host name only, e.g. ftp.example.com), FTP_USERNAME, FTP_PASSWORD
 #   Variables: FTP_DIR_TEST, FTP_DIR_LIVE (server folders, e.g. /public_html/eve-tools-test/; a missing final "/" is added)
 #              FTP_PROTOCOL (optional: "ftps" (default) or "ftp")
+#              FTP_CRON_DIR_TEST, FTP_CRON_DIR_LIVE (optional: where cron/ goes; default /evetest_cron/ and /eve_cron/)
+#
+# cron/ (server jobs, run by the host's cron with PHP CLI) is uploaded to its own folder outside the web roots,
+# one per instance. The host's cron command names the instance folder, e.g.
+#   php /home/me/evetest_cron/sde.php /home/me/evetest.omenek.pl
 #
 # Only changed files are uploaded (the action keeps .ftp-deploy-sync-state.json in the target folder).
 # js/version.js is uploaded last, so open pages offer the reload only once every other file is in place.
-# cache/ on the server is never touched.
+# cache/ on the server is never touched. Files under cron/ are uploaded every time (there are only a few).
 
 name: Deploy
 run-name: Deploy ${{ github.ref_name }} → ${{ github.ref_name == 'main' && 'live' || 'test' }}
@@ -28,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SERVER_DIR: ${{ github.ref_name == 'main' && vars.FTP_DIR_LIVE || vars.FTP_DIR_TEST }}
+      CRON_DIR: ${{ github.ref_name == 'main' && (vars.FTP_CRON_DIR_LIVE || '/eve_cron/') || (vars.FTP_CRON_DIR_TEST || '/evetest_cron/') }}
       PROTOCOL: ${{ vars.FTP_PROTOCOL || 'ftps' }}
     steps:
       - uses: actions/checkout@v5
@@ -40,7 +46,13 @@ jobs:
           fi
           case "$SERVER_DIR" in */) ;; *) SERVER_DIR="$SERVER_DIR/";; esac
           echo "SERVER_DIR=$SERVER_DIR" >> "$GITHUB_ENV"
-          echo "Deploying ${{ github.ref_name }} to $SERVER_DIR"
+          case "$CRON_DIR" in */) ;; *) CRON_DIR="$CRON_DIR/";; esac
+          case "$CRON_DIR" in "$SERVER_DIR"*)
+            echo "::error::The cron folder ($CRON_DIR) is inside the instance folder ($SERVER_DIR); it must be outside the web root."
+            exit 1;;
+          esac
+          echo "CRON_DIR=$CRON_DIR" >> "$GITHUB_ENV"
+          echo "Deploying ${{ github.ref_name }} to $SERVER_DIR (cron jobs to $CRON_DIR)"
 
       - name: Upload changed files (except js/version.js)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -57,9 +69,26 @@ jobs:
             .vscode/**
             .claude/**
             cache/**
+            cron/**
             CLAUDE.md
             README.md
             js/version.js
+
+      - name: Upload cron/ outside the web root
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          tls=""
+          [ "$PROTOCOL" = "ftps" ] && tls="--ssl-reqd"
+          for f in cron/* cron/.htaccess; do
+            [ -f "$f" ] || continue
+            echo "  $f -> ${CRON_DIR}${f#cron/}"
+            curl --fail --silent --show-error $tls --ftp-create-dirs \
+              --user "$FTP_USERNAME:$FTP_PASSWORD" \
+              -T "$f" "ftp://$FTP_SERVER${CRON_DIR}${f#cron/}"
+          done
 
       - name: Upload js/version.js last
         env:

@@ -1,6 +1,7 @@
 // Ore Profit Calculator module (ported from the standalone Ore Profit Calculator v26).
-// The app ships without prices. They come only from prices.php on the same server (shared Fuzzwork cache,
-// refreshed when Fuzzwork publishes new data, about every 30 minutes): loaded on first launch, then kept up to date.
+// The app ships without prices. They come only from prices.php on the same server, which serves the copy saved by
+// the server's price job (cron/prices.php: Fuzzwork data, fetched when Fuzzwork publishes, about every 30 minutes):
+// loaded on first launch, then kept up to date.
 import { r2, nf2, nf0, isk, fullIsk, esc, showTip, hideTip, store } from "../shared.js";
 
 const KEY = "oreProfitCalc.v1";
@@ -14,7 +15,8 @@ const GAS_SECTIONS = [                 // wormhole gas first, then k-space gas
   { title: "Wormhole gas", from: 33, to: 42 },
   { title: "K-space gas", from: 42, to: 60 },
 ];
-const SYNC_EVERY = 2 * 60 * 1000;      // ask for anything newer this often (prices.php checks Fuzzwork at most this often too)
+const SYNC_EVERY = 2 * 60 * 1000;      // ask for anything newer this often (the server's price job runs this often too)
+const JOB_LATE = 15 * 60 * 1000;       // the server's price job hasn't run for this long: say prices may be out of date
 const NO_PRICES = hub => ({ source: "none", at: null, hub, data: {} });
 
 const TEMPLATE = `
@@ -163,7 +165,7 @@ const TEMPLATE = `
   <footer class="note">
     Income = fleet yield (m³/s) × 3600 × ISK per m³. ISK per m³ = unit price ÷ raw ore volume, rounded to 0.01, so compressed and raw compare on the same mined m³.
     Miner yield = module yield × (1 + crit chance % × crit bonus %) + drone yield. Gas uses the huffer yield. Belt value = units × unit price; time to clear and session cargo use the fleet yield.
-    Prices: Fuzzwork market aggregates, loaded through prices.php on your server (one shared copy). Fuzzwork publishes new data about every 30 minutes; the server checks for it every 2 minutes and the page picks it up within a few minutes.
+    Prices: Fuzzwork market aggregates, saved on your server by its price job (cron/prices.php) and loaded through prices.php (one shared copy). Fuzzwork publishes new data about every 30 minutes; the job checks for it every 2 minutes and the page picks it up within a few minutes.
   </footer>`;
 
 /* ---------- module state ---------- */
@@ -174,6 +176,7 @@ let lastSync = 0, syncing = false, pending = false;   // pending: another check 
 let retryStep = 0, retryTimer = null;                  // automatic retries after a failed check
 const RETRY_MIN = [1, 2, 5];                           // minutes to wait after the 1st, 2nd, 3rd+ failure in a row
 let noServer = false;         // prices.php isn't available here: stop syncing, say so
+let jobAt = null;             // when the server's price job last ran (ms), from the last reply; never saved
 let BY_NAME, CARGO_NAMES;
 
 function defaults() {
@@ -476,6 +479,8 @@ export async function mount(el) {
   const allIds = () => { const s = new Set(); DATA.fam.flat().forEach(it => { s.add(it[1]); if (it[3]) s.add(it[3]); }); return [...s]; };
   const priceUrl = since => `${PRICES_URL}?market=${encodeURIComponent(S.hub)}&types=${allIds().join(",")}${since ? `&since=${since}` : ""}`;
 
+  const fmtWhen = d => d.toLocaleString([], d.getFullYear() === new Date().getFullYear()   // year only when it isn't this one
+    ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" } : { dateStyle: "medium", timeStyle: "short" });
   function renderStatus() {
     const dot = $("statusDot"), t = $("statusText"), p = S.prices;
     if (p.source === "none") {
@@ -484,15 +489,16 @@ export async function mount(el) {
         : $("priceErr").hidden ? "No prices yet. Loading them…" : "No prices yet.";
       return;
     }
-    const age = (Date.now() - p.at) / 36e5;
-    dot.className = "dot " + (age > 6 ? "old" : "ok");
-    const d = new Date(p.at), when = d.toLocaleString([], d.getFullYear() === new Date().getFullYear()   // year only when it isn't this one
-      ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" } : { dateStyle: "medium", timeStyle: "short" });
+    const age = (Date.now() - p.at) / 36e5, jobLate = jobAt != null && Date.now() - jobAt > JOB_LATE;
+    dot.className = "dot " + (age > 6 || jobLate ? "old" : "ok");
+    const when = fmtWhen(new Date(p.at));
     if (p.hub !== S.hub) {
       t.innerHTML = noServer ? `Showing ${esc(HUBNAME(p.hub))} prices. prices.php isn't available here, so ${esc(HUBNAME(S.hub))} can't be loaded.` : `Loading ${esc(HUBNAME(S.hub))} prices…`;
       return;
     }
-    t.innerHTML = `${esc(HUBNAME(p.hub))}, ${Object.keys(p.data).length} items.<br>Prices updated ${esc(when)}. They refresh automatically.`;
+    t.innerHTML = `${esc(HUBNAME(p.hub))}, ${Object.keys(p.data).length} items.<br>Prices updated ${esc(when)}. `
+      + (jobLate ? `<span class="warnsum">⚠ The server's price job hasn't run since ${esc(fmtWhen(new Date(jobAt)))}, so these prices may be out of date.</span>`
+        : "They refresh automatically.");
   }
   function acceptPrices(res) {
     const json = res && res.data, keys = Object.keys(json || {});
@@ -544,7 +550,8 @@ export async function mount(el) {
     try {
       const have = S.prices.source === "fuzzwork" && S.prices.hub === S.hub ? Math.floor(S.prices.at / 1000) : 0;
       const json = await requestServer(have);
-      if (json.data) acceptPrices(json);
+      jobAt = json.jobAt ? json.jobAt * 1000 : null;
+      if (json.data) acceptPrices(json); else renderStatus();
       clearError();
     } catch (e) {
       if (e.noServer) serverMissing();
