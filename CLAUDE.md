@@ -10,10 +10,12 @@ css/app.css              all styles; theme tokens at the top (light + dark)
 js/app.js                MODULES registry, menu, hash routing, lazy loading, settings, update check
 js/version.js            APP_VERSION "MAJOR.MINOR" — raise it on every release; open pages poll this file for the update bar
 prices.php               Fuzzwork price proxy; shared cache (cache/) refreshed when Fuzzwork publishes a new orderset
+sde.php                  serves game data extracted from the SDE (cache/sde/<set>.json) to modules
+cron/sde.php             cron job (CLI only): downloads a new SDE build when CCP publishes one, extracts what modules need
 .htaccess                Apache: no-cache revalidation for html/js/css/json, hides cache/
 js/shared.js             formatting (isk, nf0, nf2, r2), esc, tooltip (showTip/hideTip), store
 js/modules/<tool>.js     one file per tool
-data/*.json              static data a module fetches
+data/*.json              static data a module fetches (hand-maintained; game data that changes with patches comes from the SDE job instead)
 ```
 
 ## Adding a tool
@@ -40,6 +42,12 @@ data/*.json              static data a module fetches
 **PHP server only.** Upload the repo (not `cache/`). Needs PHP 7.4+ with curl or allow_url_fopen, and a writable folder next to `prices.php` for `cache/`. Static hosting (GitHub Pages) and the claude.ai artifact are not targets: without PHP the Ore module shows "prices.php isn't available here" and has no prices.
 
 **Prices:** only `prices.php` fetches prices — no direct Fuzzwork requests from the browser and no manual paste option; don't add either. The app ships with no prices (`data/ores.json` has none — keep it that way). The server fetches new prices only when Fuzzwork has published new data (it checks Fuzzwork's orderset number at most every 2 minutes; new data comes about every 30 minutes). The Ore module loads them on first launch and checks every 2 minutes after (prices are sent only when the server's shared copy is newer). Prices are kept in each visitor's browser and in the server's `cache/`; nothing writes back into the site's files.
+
+**Cron jobs** (`cron/`, run with PHP CLI; `cron/.htaccess` and a CLI check keep them off the web):
+
+- `php cron/sde.php` — every hour. Reads CCP's `latest.jsonl` (build number); only when the build changed it downloads the JSONL zip (~100 MB, needs ~700 MB free while unpacking), streams the needed files and writes `cache/sde/reprocessing.json` + `state.json`. A new file replaces the old one only after `validateReprocessing()` passes (known values confirmed in game); the previous copy is kept as `*.prev.json`. `--force` extracts again. Exits 1 and keeps the old data on any error.
+- Game data that changes with patches (type materials, batch sizes, skill/rig/structure bonuses) comes from this job, not from files in the repo; nothing in `cache/` is ever committed or deployed.
+- Outgoing requests from server jobs use User-Agent `EVE-Tools by omenek`.
 
 **Deploy:** `.github/workflows/deploy.yml` uploads over FTP(S) only when run by hand (GitHub → Actions → Deploy → Run workflow). Branch `main` goes to the live site (https://eve.omenek.pl); any other branch goes to the test site (https://eve.omenek.pl/__test). Pushing deploys nothing.
 
