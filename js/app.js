@@ -91,10 +91,16 @@ resets.addEventListener("click", async e => {
 
 /* ---------- update check ----------
    Re-read js/version.js from the server, bypassing the browser cache. When its APP_VERSION is newer than the one
-   this page loaded, offer a reload. Works on any host (PHP server, GitHub Pages, claude.ai artifact). */
+   this page loaded, offer a reload. Versions are "MAJOR.MINOR" (a plain "3" counts as "3.0"). */
 const VERSION_URL = new URL("./version.js", import.meta.url);
 const SHELL_FILES = ["../index.html", "../css/app.css", "./app.js", "./shared.js", "./version.js", "../data/ores.json"];
-let lastCheck = 0, checking = false, noServer = false, dismissed = 0;
+let lastCheck = 0, checking = false, noServer = false, dismissed = "";
+const VERSION_RE = /APP_VERSION\s*=\s*["']?(\d+(?:\.\d+)?)/;
+// Compare "MAJOR.MINOR" versions part by part (so 3.10 is newer than 3.9): >0 when a is newer than b.
+function cmpVersion(a, b) {
+  const [a1, a2 = 0] = String(a).split(".").map(Number), [b1, b2 = 0] = String(b).split(".").map(Number);
+  return a1 - b1 || a2 - b2;
+}
 document.getElementById("appVer").textContent = APP_VERSION;
 
 async function unsavedNotes() {
@@ -106,10 +112,10 @@ async function checkVersion() {
   if (checking || noServer) return; checking = true; lastCheck = Date.now();
   try {
     const r = await fetch(VERSION_URL, { cache: "no-store" });
-    const m = r.ok && /APP_VERSION\s*=\s*(\d+)/.exec(await r.text());
+    const m = r.ok && VERSION_RE.exec(await r.text());
     if (!m) { noServer = true; return; }
-    const latest = +m[1];
-    if (latest > APP_VERSION && latest !== dismissed) {
+    const latest = m[1];
+    if (cmpVersion(latest, APP_VERSION) > 0 && latest !== dismissed) {
       const notes = await unsavedNotes();
       document.getElementById("updText").innerHTML = `<b>Version ${latest} is available.</b> You're using version ${APP_VERSION}. Your settings are kept${notes.length ? `, but ${notes.join(" and ")} will need to be pasted again` : ""}.`;
       document.getElementById("updBar").dataset.latest = latest;
@@ -126,7 +132,7 @@ document.getElementById("updReload").addEventListener("click", async () => {
   location.reload();
 });
 document.getElementById("updLater").addEventListener("click", () => {
-  dismissed = +document.getElementById("updBar").dataset.latest || 0;     // don't ask again for this version
+  dismissed = document.getElementById("updBar").dataset.latest || "";    // don't ask again for this version
   document.getElementById("updWrap").hidden = true;
 });
 setInterval(checkVersion, 5 * 60 * 1000);

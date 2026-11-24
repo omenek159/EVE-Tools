@@ -8,7 +8,7 @@ Multipurpose web app for EVE Online: a set of calculators behind one shell (head
 index.html               shell only: header, menu container, update bar, settings drawer, #views, #tip
 css/app.css              all styles; theme tokens at the top (light + dark)
 js/app.js                MODULES registry, menu, hash routing, lazy loading, settings, update check
-js/version.js            APP_VERSION — raise it on every release; open pages poll this file for the update bar
+js/version.js            APP_VERSION "MAJOR.MINOR" — raise it on every release; open pages poll this file for the update bar
 prices.php               Fuzzwork price proxy with a shared 10-min cache (cache/)
 .htaccess                Apache: no-cache revalidation for html/js/css/json, hides cache/
 js/shared.js             formatting (isk, nf0, nf2, r2), esc, tooltip (showTip/hideTip), store
@@ -45,7 +45,7 @@ data/*.json              static data a module fetches
 
 **Update bar:** the shell re-reads `js/version.js` (no-store) every 5 minutes and when the tab comes back; if its APP_VERSION is higher than the loaded one, it offers a reload.
 
-**Releasing:** raise `APP_VERSION` in `js/version.js` with every change that should reach open pages.
+**Releasing:** raise `APP_VERSION` in `js/version.js` with every release (see Versioning below).
 
 Other rules:
 
@@ -61,7 +61,30 @@ Other rules:
 
 Ask the user before every commit and push.
 
+### Branches
+
+| Branch | What goes there |
+|---|---|
+| `main` | what's live. Never commit to it directly: it only receives merges from `rc` and `fix-*`. |
+| `rc` | release candidate: finished features merged together for the final test on the test site, plus fixes for problems that come from combining them. |
+| `feat-<name>` | one new module or bigger piece of work each (e.g. `feat-reprocessing`, `feat-rdf`). Updated only from `main`, never from `rc` (that would pull in other unreleased features). |
+| `fix-<name>` | any small change to live, made from the latest `main`; deleted once merged. |
+
+- **New feature:** `feat-*` → merge into `rc` → test `rc` on the test site → raise MAJOR on `rc` → merge `rc` into `main` → run Deploy on `main` → merge `main` into the other `feat-*` branches.
+- **Small change:** `fix-*` from `main` → raise MINOR → test on the test site → merge into `main` → run Deploy on `main` → merge `main` into `rc` and every `feat-*` (otherwise the next release would undo the fix) → delete the `fix-*` branch.
+- **Bug in an unreleased feature:** fix it on its `feat-*` branch, then merge that into `rc` again.
+- Before working on a branch, fetch and update it: the user also commits from their own computer.
+- The test site shows whichever branch was deployed last; redeploy `rc` after testing a `fix-*` branch there.
+
+### Versioning
+
+`APP_VERSION` in `js/version.js` is `"MAJOR.MINOR"`.
+
+- **MINOR** +1 for each small change released through `fix-*` (`"3.1"` → `"3.2"`). Raise it on the `fix-*` branch.
+- **MAJOR** +1, MINOR back to 0, for a release with new features (`"3.2"` → `"4.0"`), or when the user asks. Raise it on `rc` just before merging into `main`.
+- Feature branches never change the version, so it only conflicts when it really changed on `main`.
+
 ## Testing
 
 - `PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8000` in the repo folder (the built-in server is otherwise single-threaded and a slow Fuzzwork fetch blocks every other request).
-- ES modules don't load from `file://`. Check each tab, both themes, and the browser console for errors (a favicon 404 is expected).
+- ES modules don't load from `file://`. Check each tab, both themes, and the browser console for errors.

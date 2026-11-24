@@ -3,7 +3,7 @@
  * EVE Tools: price and version endpoint (used by the Ore prices module and the app's update check).
  *
  * GET prices.php?market=station:60003760&types=1230,62516,...[&since=<unix seconds>]
- * GET prices.php?version=1                     -> {"version":1} only (the shell's update check)
+ * GET prices.php?version=1                     -> {"version":"3.1"} only
  *
  * Returns the Fuzzwork prices for the market. Each market's result is saved in ./cache/
  * with the time it was fetched; a copy younger than CACHE_TTL is returned without asking
@@ -16,8 +16,8 @@
  * Every reply also carries "version": the APP_VERSION line read from js/version.js next to this
  * script, so open pages can offer a reload when a newer version has been uploaded.
  *
- * Response: {"version":1,"market":"...","fetchedAt":<unix>,"cached":true|false,"ttl":600,"data":{...}}
- * Errors:   {"error":"message","version":27} with a 4xx/5xx status
+ * Response: {"version":"3.1","market":"...","fetchedAt":<unix>,"cached":true|false,"ttl":600,"data":{...}}
+ * Errors:   {"error":"message","version":"3.1"} with a 4xx/5xx status
  *
  * Needs PHP 7.4+ and either the curl extension or allow_url_fopen.
  */
@@ -39,10 +39,10 @@ const MARKETS = [                              // only these markets can be requ
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
-function pageVersion(): ?int {
+function pageVersion(): ?string {                 // "MAJOR.MINOR", as written in js/version.js
     $js = @file_get_contents(VERSION_FILE, false, null, 0, 4096);
-    if ($js === false || !preg_match('/APP_VERSION\s*=\s*(\d+)/', $js, $m)) return null;
-    return (int)$m[1];
+    if ($js === false || !preg_match('/APP_VERSION\s*=\s*["\']?(\d+(?:\.\d+)?)/', $js, $m)) return null;
+    return $m[1];
 }
 function fail(int $code, string $msg): void {
     http_response_code($code);
