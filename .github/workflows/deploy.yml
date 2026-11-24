@@ -1,6 +1,8 @@
-# Deploys the app to the PHP server over FTP(S) on every push.
-#   push to `test` -> test instance (folder in variable FTP_DIR_TEST)
-#   push to `main` -> live instance (folder in variable FTP_DIR_LIVE)
+# Deploys the app to the PHP server over FTP(S). Runs only when started by hand:
+# GitHub -> Actions -> Deploy -> Run workflow, then pick the branch in "Use workflow from".
+#   branch `main`  -> live instance (folder in variable FTP_DIR_LIVE)
+#   any other      -> test instance (folder in variable FTP_DIR_TEST)
+# Pushing a branch deploys nothing. Runs for the same instance wait for each other.
 #
 # Setup (GitHub repo -> Settings -> Secrets and variables -> Actions):
 #   Secrets:   FTP_SERVER (host name only, e.g. ftp.example.com), FTP_USERNAME, FTP_PASSWORD
@@ -12,14 +14,13 @@
 # cache/ on the server is never touched.
 
 name: Deploy
+run-name: Deploy ${{ github.ref_name }} → ${{ github.ref_name == 'main' && 'live' || 'test' }}
 
 on:
-  push:
-    branches: [test, main]
   workflow_dispatch:
 
 concurrency:
-  group: deploy-${{ github.ref_name }}
+  group: deploy-${{ github.ref_name == 'main' && 'live' || 'test' }}
   cancel-in-progress: false
 
 jobs:

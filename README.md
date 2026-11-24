@@ -11,6 +11,10 @@ Needs a PHP web server (PHP 7.4+, curl or `allow_url_fopen`). Upload everything 
 
 The app ships with no prices and loads them through `prices.php` on first launch; everyone using the page shares one copy, refreshed from Fuzzwork at most every 10 minutes. Open pages offer a reload when `js/version.js` on the server has a higher `APP_VERSION`.
 
+## Deploy
+
+GitHub → Actions → Deploy → Run workflow, then pick the branch: `main` goes to the live site, any other branch to the test site. Pushing a branch doesn't deploy. Setup (FTP secrets and folders) is described at the top of `.github/workflows/deploy.yml`.
+
 ## Run locally
 
 ```
