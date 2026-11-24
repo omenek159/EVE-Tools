@@ -5,7 +5,7 @@ Multipurpose web app for EVE Online: a set of calculators behind one shell (head
 ## Layout
 
 ```
-index.html               shell only: header, menu container, update bar, settings drawer, #views, #tip
+index.html               shell only: header (logo, price status, settings button), menu container, update bar, settings drawer, #views, #tip
 css/app.css              all styles; theme tokens at the top (light + dark)
 js/app.js                MODULES registry, menu, hash routing, lazy loading, settings, update check
 js/version.js            APP_VERSION "MAJOR.MINOR" — raise it on every release; open pages poll this file for the update bar
@@ -17,6 +17,7 @@ cron/lib.php             helpers shared by the cron jobs (site folder argument, 
 data/markets.json        the markets prices are kept for (used by prices.php and cron/prices.php)
 .htaccess                Apache: no-cache revalidation for html/js/css/json, hides cache/
 js/shared.js             formatting (isk, nf0, nf2, r2), esc, tooltip (showTip/hideTip), store
+js/prices.js             shared price service: one market + price basis for the whole app (Settings), one copy of the prices, status in the header
 js/modules/<tool>.js     one file per tool
 data/*.json              static data a module fetches (hand-maintained; game data that changes with patches comes from the SDE job instead)
 ```
@@ -39,12 +40,13 @@ data/*.json              static data a module fetches (hand-maintained; game dat
 - Numbers: monospace, tabular, right-aligned. ISK via `isk()` (1.2M / 3.40B).
 - Browser storage only through `store` in `shared.js` (it may be unavailable). Storage is per-browser convenience, never the only copy of something important.
 - Every formula and outside number gets a line in the module's `footer.note`, with its source.
+- Market prices only through `js/prices.js`: call `want(ids)` in `mount`, read `price(id)`, re-render on `on(fn)`. No market/basis pickers or price status inside modules: they live in Settings and the header.
 
 ## Hosting
 
 **PHP server only.** Upload the repo (not `cache/`). Needs PHP 7.4+, cron with PHP CLI (curl, zip), and a writable site folder for `cache/` (created by the cron jobs). Static hosting (GitHub Pages) and the claude.ai artifact are not targets: without PHP the Ore module shows "prices.php isn't available here" and has no prices.
 
-**Prices:** only the cron job `cron/prices.php` fetches prices; pages get them through `prices.php`, which only reads what the job saved (no fallback fetch: without the cron job there are no prices). No direct Fuzzwork requests from the browser and no manual paste option; don't add either. The app ships with no prices (`data/ores.json` has none — keep it that way). The job checks Fuzzwork's orderset number every 2 minutes and fetches every market in `data/markets.json` only when it went up (new data comes about every 30 minutes). Items priced: everything in `data/ores.json` plus the minerals from the SDE extract. The Ore module loads prices on first launch and checks every 2 minutes after (prices are sent only when the server's copy is newer); every reply carries `jobAt`, and the module warns when the job hasn't run for 15 minutes. Prices are kept in each visitor's browser and in the server's `cache/`; nothing writes back into the site's files.
+**Prices:** only the cron job `cron/prices.php` fetches prices; pages get them through `prices.php`, which only reads what the job saved (no fallback fetch: without the cron job there are no prices). No direct Fuzzwork requests from the browser and no manual paste option; don't add either. The app ships with no prices (`data/ores.json` has none — keep it that way). The job checks Fuzzwork's orderset number every 2 minutes and fetches every market in `data/markets.json` only when it went up (new data comes about every 30 minutes). Items priced: everything in `data/ores.json` plus every reprocessing output material from the SDE extract (~600). Pages get them through `js/prices.js`: one market and price basis for the whole app (Settings → Market prices, key `eveTools.prices.v1`; taken over once from the Ore module's old settings), loaded on first launch and checked every 2 minutes after (prices are sent only when the server's copy is newer). The header shows the market and when prices were updated, with a warning when the job hasn't run for 15 minutes (`jobAt` in every reply). Prices are kept in each visitor's browser and in the server's `cache/`; nothing writes back into the site's files.
 
 **Cron jobs** (`cron/`, run with PHP CLI). Deploy uploads `cron/` to its own folder outside the web roots, one per instance: `/eve_cron/` (live) and `/evetest_cron/` (test) in the FTP root (`FTP_CRON_DIR_LIVE` / `FTP_CRON_DIR_TEST` override), so each job takes the instance's folder as its first argument; without it, the folder above the script is used. `cron/.htaccess` and a CLI check keep the jobs off the web wherever they end up.
 
@@ -68,6 +70,7 @@ Other rules:
 ## Tools and sources
 
 - **Ore prices** (`ore.js`, `data/ores.json`): port of the standalone Ore Profit Calculator v26. ISK/h per ore grade (compressed vs raw) and gas; fleet of miners (module yield, crit chance %, crit bonus %, drones) and gas huffers; mining session: cargo-hold paste, share of the hold paid in cheapest ore, mining-scanner paste for belt value, session estimate by duration / end time / until empty. Prices from Fuzzwork market aggregates via the price job (see Hosting). `ores.json` holds only static game data: the ore list (`fam`: [name, rawId, rawVol, compressedId, compressedVol]) and the default fleet (`miners`, `huff`) — no prices. Saved state key `oreProfitCalc.v1` (shared with the standalone page; keep its migrations).
+- **Reprocessing** (`reprocessing.js`): paste items (list view), get the materials, their value, the tax and whether reprocessing beats selling. Structure (Athanor/Tatara/faction Fortizars/other Upwell/NPC station), security, ore/moon/ice rigs (T1/T2), tax %; character skills and implant entered by hand (ESI later). Ore/moon/ice yield = base (50, or rig 51/53 × security 1/1.06/1.12) × structure bonus × Reprocessing 3%/lvl × Reprocessing Efficiency 2%/lvl × ore skill 2%/lvl × implant; scrapmetal = base × (1 + 2% × Scrapmetal Processing) only (EVE University wiki). Whole batches, output rounded down; tax = rate × output × ESI adjusted price (confirmed in game). Data from the SDE extract (`sde.php?set=reprocessing`); saved settings key `eveTools.reprocessing.v1`.
 - **Incursions** (`incursions.js`): ISK/h from pasted wallet journal. Logic ported from TLA waitlist `frontend/src/Pages/ISKh.js` (MIT, github.com/luna-duclos/tla-waitlist). Overgrid factor `1 − 0.0725n − 0.0025n²`.
 
 ## Git

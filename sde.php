@@ -32,4 +32,5 @@ $etag = '"' . $set . '-' . filemtime($file) . '-' . filesize($file) . '"';
 header('Cache-Control: no-cache');
 header('ETag: ' . $etag);
 if (trim($_SERVER['HTTP_IF_NONE_MATCH'] ?? '') === $etag) { http_response_code(304); exit; }
+if (!ini_get('zlib.output_compression') && function_exists('ob_gzhandler')) ob_start('ob_gzhandler');   // ~1.6 MB -> ~0.3 MB
 readfile($file);

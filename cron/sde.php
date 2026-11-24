@@ -37,6 +37,7 @@ const A_SEC_HIGH     = 2355;  // hiSecModifier
 const A_SEC_LOW      = 2356;  // lowSecModifier
 const A_SEC_NULL     = 2357;  // nullSecModifier
 const A_IMPLANTNESS  = 331;   // implant slot: only real implants have it (not boosters)
+const T_SCRAPMETAL = 12196;       // Scrapmetal Processing: the skill for everything without its own reprocessingSkillType
 const T_REPRO_FACILITY = 35899;   // Standup Reprocessing Facility I: its 0.5 is the base yield without a rig
 const CAT_SKILL = 16, CAT_IMPLANT = 20, CAT_STRUCTURE = 65, CAT_STRUCTURE_MODULE = 66;
 
@@ -59,8 +60,9 @@ function en($name): string { return is_array($name) ? (string)($name['en'] ?? re
 /*
  * cache/sde/reprocessing.json:
  *   items      {typeID: {name, group, class, portion, volume, skill, materials {typeID: qty per batch}}}
- *              every published type with a reprocessing skill: ores (raw and compressed), moon ore, ice, ...
- *              class = which M-set rig applies: "ore" | "moon" | "ice"
+ *              every published type that reprocesses into a fixed list of materials: ores (raw and compressed),
+ *              moon ore, ice, and everything else (modules, ships, charges, ...: scrapmetal)
+ *              class = "ore" | "moon" | "ice" (which M-set rig applies) | "scrap" (skill: Scrapmetal Processing)
  *   compressed {rawTypeID: compressedTypeID}
  *   materials  {typeID: {name, volume}}       what the items reprocess into
  *   baseYield  % yield of a structure's reprocessing service without a rig
@@ -85,24 +87,32 @@ function extractReprocessing(string $dir, array $sde): array {
         if ($a) $attrs[$r['_key']] = $a;
     });
 
-    $types = [];                                          // typeID => row, only for types with interesting attributes
-    eachRow("$dir/types.jsonl", function ($r) use (&$types) { $types[$r['_key']] = $r; },
-        function ($id) use ($attrs) { return isset($attrs[$id]); });
+    $mats = [];                                           // typeID => [materialTypeID => qty per batch]
+    eachRow("$dir/typeMaterials.jsonl", function ($r) use (&$mats) {
+        foreach ($r['materials'] ?? [] as $m) $mats[$r['_key']][(int)$m['materialTypeID']] = (int)$m['quantity'];
+    });
 
+    $types = [];                                          // typeID => row, only for types with materials or interesting attributes
+    eachRow("$dir/types.jsonl", function ($r) use (&$types) { unset($r['description']); $types[$r['_key']] = $r; },
+        function ($id) use ($attrs, $mats) { return isset($attrs[$id]) || isset($mats[$id]); });
+
+    $matIds = [];
     $out = ['sde' => $sde, 'generatedAt' => time(), 'items' => [], 'compressed' => [], 'materials' => [],
             'baseYield' => null, 'skills' => [], 'implants' => [], 'structures' => [], 'rigs' => []];
 
-    foreach ($attrs as $id => $a) {
-        $t = $types[$id] ?? null;
+    foreach ($types as $id => $t) {
+        $a = $attrs[$id] ?? [];
         if (!$t || empty($t['published'])) continue;
         [$cat, $group] = $groups[$t['groupID']] ?? [0, ''];
         $name = en($t['name'] ?? '');
 
-        if (isset($a[A_REPRO_SKILL])) {
-            $class = stripos($group, 'Ice') !== false ? 'ice' : (stripos($group, 'Moon Asteroids') !== false ? 'moon' : 'ore');
+        if (isset($mats[$id])) {
+            $class = !isset($a[A_REPRO_SKILL]) ? 'scrap' : (stripos($group, 'Ice') !== false ? 'ice'
+                   : (stripos($group, 'Moon Asteroids') !== false ? 'moon' : 'ore'));
             $out['items'][$id] = ['name' => $name, 'group' => $group, 'class' => $class,
                 'portion' => (int)($t['portionSize'] ?? 1), 'volume' => (float)($t['volume'] ?? 0),
-                'skill' => (int)$a[A_REPRO_SKILL], 'materials' => []];
+                'skill' => (int)($a[A_REPRO_SKILL] ?? T_SCRAPMETAL), 'materials' => $mats[$id]];
+            foreach ($mats[$id] as $m => $q) $matIds[$m] = true;
         }
         if (isset($a[A_YIELD_MUT]) && $cat === CAT_SKILL)
             $out['skills'][$id] = ['name' => $name, 'bonus' => (float)$a[A_YIELD_MUT]];
@@ -120,15 +130,6 @@ function extractReprocessing(string $dir, array $sde): array {
         }
     }
 
-    // Materials per batch, for the items only.
-    $matIds = [];
-    eachRow("$dir/typeMaterials.jsonl", function ($r) use (&$out, &$matIds) {
-        foreach ($r['materials'] ?? [] as $m) {
-            $out['items'][$r['_key']]['materials'][$m['materialTypeID']] = (int)$m['quantity'];
-            $matIds[$m['materialTypeID']] = true;
-        }
-    }, function ($id) use ($out) { return isset($out['items'][$id]); });
-
     eachRow("$dir/types.jsonl", function ($r) use (&$out) {
         $out['materials'][$r['_key']] = ['name' => en($r['name'] ?? ''), 'volume' => (float)($r['volume'] ?? 0)];
     }, function ($id) use ($matIds) { return isset($matIds[$id]); });
@@ -137,7 +138,6 @@ function extractReprocessing(string $dir, array $sde): array {
         $out['compressed'][$r['_key']] = (int)$r['compressedTypeID'];
     }, function ($id) use ($out) { return isset($out['items'][$id]); });
 
-    foreach ($out['items'] as $id => $it) if (!$it['materials']) unset($out['items'][$id]);   // nothing to get out of it
     foreach (['items', 'materials', 'skills', 'implants', 'structures', 'rigs', 'compressed'] as $k) ksort($out[$k]);
     return $out;
 }
@@ -145,7 +145,8 @@ function extractReprocessing(string $dir, array $sde): array {
 // Known values (confirmed in game); a file that disagrees is not published.
 function validateReprocessing(array $r): void {
     $check = function (bool $ok, string $what) { if (!$ok) throw new RuntimeException("check failed: $what"); };
-    $check(count($r['items']) > 300, 'fewer than 300 reprocessable items');
+    $check(count($r['items']) > 5000, 'fewer than 5000 reprocessable items');
+    $check(count(array_filter($r['items'], function ($i) { return $i['class'] !== 'scrap'; })) > 300, 'fewer than 300 ores');
     $v = $r['items'][62518] ?? null;                                    // Compressed Veldspar III-Grade
     $check($v && $v['portion'] === 100 && ($v['materials'][34] ?? 0) === 440 && $v['skill'] === 60377, 'Compressed Veldspar III-Grade');
     $check(($r['materials'][34]['name'] ?? '') === 'Tritanium', 'Tritanium');

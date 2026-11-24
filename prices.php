@@ -4,6 +4,8 @@
  *
  * GET prices.php?market=station:60003760&types=1230,62516,...[&since=<unix seconds>]
  * GET prices.php?version=1                     -> {"version":"4.1"} only
+ * GET prices.php?adjusted=1&types=34,35,...    -> {"version","fetchedAt","data":{typeID: adjusted price}}
+ *     CCP's adjusted prices (ESI), saved by the same job at most hourly; used for reprocessing tax.
  *
  * Serves the prices saved by the cron job cron/prices.php (Fuzzwork market aggregates, fetched for every
  * market in data/markets.json when Fuzzwork publishes new data, about every 30 minutes). This endpoint never
@@ -49,16 +51,26 @@ function readJson(string $file): ?array {
 if (isset($_GET['version'])) { echo json_encode(['version' => pageVersion()]); exit; }
 
 // ---- validate input ----
+$typesRaw = $_GET['types'] ?? '';
+if (!preg_match('/^\d{1,9}(,\d{1,9}){0,1499}$/', $typesRaw)) fail(400, 'Bad item list.');
+$types = array_map('intval', explode(',', $typesRaw));
+$since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
+
+// ---- adjusted prices ----
+if (isset($_GET['adjusted'])) {
+    $a = readJson(CACHE_DIR . '/adjusted_prices.json');
+    if (!$a || !isset($a['fetchedAt'], $a['data'])) fail(503, 'The server has no adjusted prices yet: its price job (cron/prices.php) hasn\'t run.');
+    $out = ['version' => pageVersion(), 'fetchedAt' => $a['fetchedAt']];
+    if ($a['fetchedAt'] > $since) $out['data'] = array_intersect_key($a['data'], array_flip($types));
+    echo json_encode($out);
+    exit;
+}
+
+// ---- market prices ----
 $market = $_GET['market'] ?? 'station:60003760';
 $markets = readJson(MARKETS_FILE) ?? [];
 if (!isset($markets[$market])) fail(400, 'Unknown market.');
 
-$typesRaw = $_GET['types'] ?? '';
-if (!preg_match('/^\d{1,9}(,\d{1,9}){0,499}$/', $typesRaw)) fail(400, 'Bad item list.');
-$types = array_map('intval', explode(',', $typesRaw));
-$since = isset($_GET['since']) ? (int)$_GET['since'] : 0;
-
-// ---- saved prices ----
 $c = readJson(CACHE_DIR . '/prices_' . str_replace(':', '_', $market) . '.json');
 if (!$c || !isset($c['fetchedAt'], $c['data'])) {
     fail(503, 'The server has no prices yet: its price job (cron/prices.php) hasn\'t run.');

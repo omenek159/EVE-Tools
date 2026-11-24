@@ -14,8 +14,9 @@
  *   <site>/cache/adjusted_prices.json   {"fetchedAt","data":{typeID: adjusted price}} from ESI, at most hourly
  *                                       (CCP's reference price, used e.g. for reprocessing tax; changes about daily)
  *
- * Items priced: every ore, compressed ore and gas in data/ores.json, plus every mineral the SDE job
- * found in cache/sde/reprocessing.json (when it has run).
+ * Items priced: every ore, compressed ore and gas in data/ores.json, plus every material anything reprocesses
+ * into (minerals, ice products, salvage, components, ...: "materials" in cache/sde/reprocessing.json, once the
+ * SDE job has run).
  * "fetchedAt" is when these prices were first seen: a fetch that returns the same prices keeps the old time.
  * Right after a new orderset appears, Fuzzwork sometimes still serves the old prices; a market whose prices
  * came back unchanged is fetched again on the next runs, until they change or the orderset is RECHECK_SAME old.
