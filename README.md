@@ -7,9 +7,14 @@ Calculators for EVE Online in one web app.
 
 ## Hosting
 
-Needs a PHP web server (PHP 7.4+, curl or `allow_url_fopen`). Upload everything except `cache/`. `prices.php` creates `cache/` next to itself, so that folder must be writable. Static hosting such as GitHub Pages isn't supported: prices come only from `prices.php`.
+Needs a PHP web server (PHP 7.4+) and cron with PHP CLI (curl and zip extensions). Upload everything except `cache/`. The cron jobs create `cache/` in the site folder, so it must be writable by the user cron runs as. Static hosting such as GitHub Pages isn't supported: prices come only from `prices.php`.
 
-Game data that changes with patches is extracted from CCP's SDE by a cron job: run `php <cron folder>/sde.php <site folder>` every hour for each instance (it downloads only when CCP publishes a new build; Deploy puts `cron/` into `/eve_cron/` for live and `/evetest_cron/` for test, outside the web roots). Until it has run once, modules that need it show an error.
+Two cron jobs keep the server's data current; set both up for each instance (Deploy puts `cron/` into `/eve_cron/` for live and `/evetest_cron/` for test, outside the web roots):
+
+- `php <cron folder>/prices.php <site folder>` every 2 minutes: Fuzzwork market prices, fetched when Fuzzwork publishes new data.
+- `php <cron folder>/sde.php <site folder>` every hour: game data from CCP's SDE, downloaded only when CCP publishes a new build.
+
+Until a job has run once, the modules that need it show an error. The jobs print nothing unless something changed or failed.
 
 The app ships with no prices and loads them through `prices.php` on first launch; everyone using the page shares one copy, refreshed from Fuzzwork when it publishes new market data (about every 30 minutes). Open pages offer a reload when `js/version.js` on the server has a higher `APP_VERSION` (`"MAJOR.MINOR"`: MINOR for small fixes, MAJOR for new features).
 

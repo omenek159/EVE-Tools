@@ -5,10 +5,8 @@
  *   php sde.php <site folder>            check for a new SDE build; download and extract it only when it changed
  *   php sde.php <site folder> --force    extract again even if the build hasn't changed
  *
- * <site folder> is the folder with index.html and sde.php (the instance's web root), e.g.
- *   php /home/me/cron-live/sde.php /home/me/public_html
- * Without it, the folder above this script is used (cron/ uploaded inside the site).
- * The deploy workflow puts cron/ outside the web root; see .github/workflows/deploy.yml.
+ * <site folder> is the instance's web root (see cron/lib.php). Prints nothing when the build hasn't changed,
+ * unless --verbose.
  *
  * CCP publishes the Static Data Export (SDE) some time after downtime when game data changed. This job
  * reads the tiny "latest" file (build number), and when the build is newer than the one already extracted
@@ -25,11 +23,10 @@
  * Needs PHP 7.4+ CLI with curl and zip, and ~700 MB of free disk space while extracting.
  */
 
-if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+require __DIR__ . '/lib.php';
 
 const LATEST_URL = 'https://developers.eveonline.com/static-data/tranquility/latest.jsonl';
 const ZIP_URL    = 'https://developers.eveonline.com/static-data/tranquility/eve-online-static-data-%d-jsonl.zip';
-const USER_AGENT = 'EVE-Tools by omenek';
 
 // Dogma attribute IDs (names as in the SDE's dogmaAttributes)
 const A_REPRO_SKILL  = 790;   // reprocessingSkillType: the processing skill that applies to an ore
@@ -43,59 +40,9 @@ const A_IMPLANTNESS  = 331;   // implant slot: only real implants have it (not b
 const T_REPRO_FACILITY = 35899;   // Standup Reprocessing Facility I: its 0.5 is the base yield without a rig
 const CAT_SKILL = 16, CAT_IMPLANT = 20, CAT_STRUCTURE = 65, CAT_STRUCTURE_MODULE = 66;
 
-$force = in_array('--force', $argv, true);
-$args = array_values(array_filter(array_slice($argv, 1), function ($a) { return strpos($a, '--') !== 0; }));
-$site = realpath($args[0] ?? __DIR__ . '/..');
-if (!$site || !is_file("$site/sde.php")) {
-    echo 'ERROR: ', $args[0] ?? dirname(__DIR__), " is not the site folder (no sde.php there).\n",
-         "Usage: php sde.php <site folder> [--force]\n";
-    exit(1);
-}
-define('SDE_DIR', "$site/cache/sde");
+$force = flag('force');
+define('SDE_DIR', siteFolder('sde') . '/cache/sde');
 
-function say(string $msg): void { echo gmdate('Y-m-d H:i:s'), ' ', $msg, PHP_EOL; }
-function readJson(string $file): ?array {
-    if (!is_file($file)) return null;
-    $j = json_decode((string)file_get_contents($file), true);
-    return is_array($j) ? $j : null;
-}
-function writeJsonAtomic(string $file, array $data): void {
-    $tmp = $file . '.' . getmypid() . '.tmp';
-    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    if ($json === false || file_put_contents($tmp, $json) === false || !rename($tmp, $file)) {
-        @unlink($tmp);
-        throw new RuntimeException("can't write $file");
-    }
-}
-function rmTree(string $dir): void {
-    if (!is_dir($dir)) return;
-    foreach (scandir($dir) as $f) {
-        if ($f === '.' || $f === '..') continue;
-        $p = "$dir/$f";
-        is_dir($p) ? rmTree($p) : unlink($p);
-    }
-    rmdir($dir);
-}
-// GET into a string, or into a file when $toFile is given. Throws on any failure.
-function http(string $url, int $timeout, ?string $toFile = null): string {
-    $ch = curl_init($url);
-    $fh = null;
-    $opt = [
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_TIMEOUT        => $timeout,
-        CURLOPT_CONNECTTIMEOUT => 15,
-        CURLOPT_USERAGENT      => USER_AGENT,
-        CURLOPT_FAILONERROR    => true,
-    ];
-    if ($toFile) { $fh = fopen($toFile, 'wb'); $opt[CURLOPT_FILE] = $fh; } else { $opt[CURLOPT_RETURNTRANSFER] = true; }
-    curl_setopt_array($ch, $opt);
-    $body = curl_exec($ch);
-    $err = curl_error($ch);
-    curl_close($ch);
-    if ($fh) fclose($fh);
-    if ($body === false) throw new RuntimeException("download failed: $url ($err)");
-    return $toFile ? '' : $body;
-}
 // Calls $fn(array $row) for each line of a JSONL file. $want(int $key) can skip a line before it's decoded.
 function eachRow(string $file, callable $fn, ?callable $want = null): void {
     $fh = fopen($file, 'rb');
@@ -212,9 +159,7 @@ function validateReprocessing(array $r): void {
 
 // ---------------------------------------------------------------------------------------------------------
 
-if (!is_dir(SDE_DIR) && !mkdir(SDE_DIR, 0775, true)) { say('ERROR: can\'t create ' . SDE_DIR); exit(1); }
-$lock = fopen(SDE_DIR . '/run.lock', 'c');
-if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) { say('another run is still working, skipping'); exit(0); }
+$lock = lockOrExit(SDE_DIR, 'run');
 
 $stateFile = SDE_DIR . '/state.json';
 $state = readJson($stateFile) ?? ['build' => 0];
@@ -227,7 +172,7 @@ try {
     $state['checkedAt'] = time();
 
     if (!$force && $build === (int)$state['build'] && is_file(SDE_DIR . '/reprocessing.json')) {
-        say("SDE build $build: up to date");
+        sayV("SDE build $build: up to date");
         unset($state['error']);
     } else {
         say("SDE build $build (have " . ($state['build'] ?: 'none') . '): downloading');
