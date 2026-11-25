@@ -2,7 +2,7 @@
 // Game data (materials per batch, batch sizes, skill/implant/structure/rig bonuses) comes from the server's SDE
 // extract (sde.php?set=reprocessing, kept current by cron/sde.php). Market prices come from the app's shared price
 // service (js/prices.js, market and basis chosen in Settings); CCP's adjusted prices for the tax from prices.php.
-import { nf2, nf0, isk, esc, showTip, hideTip, store } from "../shared.js";
+import { nf2, nf0, isk, esc, showTip, hideTip, store, takeFor } from "../shared.js";
 import * as P from "../prices.js";
 
 const KEY = "eveTools.reprocessing.v1";
@@ -75,7 +75,7 @@ const TEMPLATE = `
 
 /* ---------- state ---------- */
 let D, S, $, items = null, adjusted = {}, adjustedAt = 0;
-let pasteText = "", refill = null;     // refill: re-read the settings into the page (after Settings → reset)
+let pasteText = "", refill = null, source = "";   // refill: re-read the settings into the page (after Settings → reset); source: where a sent paste came from
 
 function defaults() {
   return { structure: "35835", sec: "high", rigs: { ore: 0, moon: 0, ice: 0 }, tax: 0, npcTax: 5, stationYield: 50,
@@ -250,6 +250,16 @@ export async function mount(el) {
   setInterval(syncAdjusted, ADJ_EVERY);
   refill = () => { S = defaults(); fill(); renderYields(); render(); };
 
+  /* ----- items sent from another tool (Ore calculator → Reprocess): replace the paste and calculate ----- */
+  function receive() {
+    const d = takeFor("reprocessing");
+    if (!d || !d.text) return;
+    $("paste").value = pasteText = d.text; source = "";
+    $("calc").click();
+    source = d.from ? `from the Ore calculator's ${d.from}` : ""; render();
+    requestAnimationFrame(() => $("results").scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
   /* ----- paste ----- */
   $("calc").addEventListener("click", () => {
     pasteText = $("paste").value;
@@ -262,12 +272,12 @@ export async function mount(el) {
     render();
   });
   $("clear").addEventListener("click", () => { $("paste").value = ""; pasteText = ""; items = null; $("pasteErr").hidden = true; render(); });
-  $("paste").addEventListener("input", e => { pasteText = e.target.value; });
+  $("paste").addEventListener("input", e => { pasteText = e.target.value; source = ""; });
 
   /* ----- results ----- */
   function render() {
     $("results").hidden = !items;
-    $("pasteSum").innerHTML = items ? `<b>${nf0.format(items.list.length)}</b> item type${items.list.length === 1 ? "" : "s"}` : "";
+    $("pasteSum").innerHTML = items ? `<b>${nf0.format(items.list.length)}</b> item type${items.list.length === 1 ? "" : "s"}` + (source ? ` <span class="muted">${esc(source)}</span>` : "") : "";
     if (!items) return;
     const c = compute(), diff = c.net - c.inVal;
     const tile = (label, v, small = "", lead = false) => `<div class="tile${lead ? " lead" : ""}"><span>${label}</span><b>${v}</b>${small ? `<small>${small}</small>` : ""}</div>`;
@@ -307,6 +317,10 @@ export async function mount(el) {
       v.addEventListener("mouseleave", hideTip);
     });
   }
+
+  // Last, once every handler above is in place: take what another tool sent, now and whenever it sends more.
+  receive();
+  addEventListener("eve:handoff", e => { if (e.detail === "reprocessing") receive(); });
 }
 
 export function reset() { refill?.(); }

@@ -272,3 +272,14 @@ p.note{font-size:13px;color:var(--muted);margin:0}
 .yields p.note{flex-basis:100%;font-size:12px}
 h3.tbl-title{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:4px 0 -4px}
 table.data td .cls{font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-left:4px}
+details.fold > summary .rp-btn{margin-left:auto;align-self:center;padding:4px 12px;font-size:13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex:none}
+details.fold > summary .rp-btn:disabled{opacity:.45;cursor:default;border-color:var(--line)}
+.rp-ico{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* Too narrow for the label (phones): icon only; the title / aria-label still say "Reprocess". */
+#beltPanel details.fold{container-type:inline-size}
+/* Narrow: the button stays on the title's line, the summary text moves below it. */
+@container (max-width:520px){
+  details.fold > summary .rp-btn{padding:5px 8px;order:2}
+  details.fold > summary .rp-label{display:none}
+  details.fold > summary:has(.rp-btn) .sum{order:3;flex-basis:100%;padding-left:16px}
+}
