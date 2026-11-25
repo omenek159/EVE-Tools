@@ -243,6 +243,21 @@ details.sub-fold summary{cursor:pointer;font-family:var(--f-display);font-size:1
 p.warn{font-size:13px;color:var(--warn);margin:0}
 p.note{font-size:13px;color:var(--muted);margin:0}
 
+/* ---------- rdf ---------- */
+.ship-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px 16px}
+.ship{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;min-width:0}
+.ship > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ship input{width:72px;flex:none;padding:4px 6px}
+.tiles.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.tiles.two .tile b .pill{font-family:var(--f-body);font-size:13px;vertical-align:3px}
+.pay-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pill.swarm{color:var(--cool);border-color:currentColor;margin-left:6px;font-family:var(--f-body)}
+table.data.swarms{min-width:0}
+table.data.swarms td:last-child{text-align:left;font-family:var(--f-body);color:var(--muted)}
+table.data.swarms th:last-child{text-align:left}
+#waveTable tbody tr{cursor:pointer}
+#waveTable tbody tr:hover td{background:var(--panel-2)}
+
 /* ---------- update bar (shell) ---------- */
 .upd{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;padding:10px 14px;border:1px solid var(--accent);border-radius:12px;background:var(--panel);font-size:14px}
 .upd-actions{display:flex;gap:8px}

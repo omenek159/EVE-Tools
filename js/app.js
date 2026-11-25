@@ -5,13 +5,15 @@ import * as P from "./prices.js";
 
 /* ---------- module registry ----------
    To add a tool: create js/modules/<name>.js exporting mount(el) and optionally reset(),
-   then add one entry here. `keys` are the browser-storage keys the module uses (for Settings → reset). */
+   then add one entry here. `tag` (optional) is a small label next to the name in the menu, e.g. "alpha". `keys` are the browser-storage keys the module uses (for Settings → reset). */
 const MODULES = [
   { id: "ore-prices", label: "Ore prices", file: "./modules/ore.js",
     resetLabel: "Reset ore calculator", keys: ["oreProfitCalc.v1"] },
   { id: "reprocessing", label: "Reprocessing", file: "./modules/reprocessing.js",
     resetLabel: "Reset reprocessing settings", keys: ["eveTools.reprocessing.v1"] },
   { id: "incursions", label: "Incursions", file: "./modules/incursions.js", keys: [] },   // saves nothing
+  { id: "rdf", label: "RDF", tag: "alpha", file: "./modules/rdf.js",
+    resetLabel: "Reset RDF calculator", keys: ["eveTools.rdf.v1"] },
 ];
 const LIVE = MODULES.filter(m => !m.soon);
 
@@ -31,7 +33,7 @@ const menu = document.getElementById("menuItems");
 const views = document.getElementById("views");
 menu.innerHTML = MODULES.map(m => m.soon
   ? `<a class="soon" aria-disabled="true">${m.label}<span class="tag">soon</span></a>`
-  : `<a href="#${m.id}" data-view="${m.id}">${m.label}</a>`).join("");
+  : `<a href="#${m.id}" data-view="${m.id}">${m.label}${m.tag ? `<span class="tag">${m.tag}</span>` : ""}</a>`).join("");
 
 /* ---------- lazy loading ---------- */
 const loaded = new Map(); // id -> Promise<module>
