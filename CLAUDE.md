@@ -105,9 +105,12 @@ Ask the user before every commit and push.
 
 `APP_VERSION` in `js/version.js` is `"MAJOR.MINOR"`.
 
-- **MINOR** +1 for each small change released through `fix-*` (`"3.1"` → `"3.2"`). Raise it on the `fix-*` branch.
-- **MAJOR** +1, MINOR back to 0, for a release with new features (`"3.2"` → `"4.0"`), or when the user asks. Raise it on `rc` just before merging into `main`.
+**Until the site is public, MAJOR stays `0`** (restarted at `"0.1"` from the earlier 4.x/5.0 numbers). Never raise MAJOR until the user says so; every release raises MINOR instead:
+
+- **MINOR** +1 for every release: a feature release from `rc` (raise it on `rc` just before merging into `main`) or a small change through `fix-*` (raise it on the `fix-*` branch). `"0.1"` → `"0.2"`.
+- After the public launch (the user decides): MINOR +1 for each `fix-*` release, MAJOR +1 with MINOR back to 0 for a release with new features.
 - Feature branches never change the version, so it only conflicts when it really changed on `main`.
+- The update bar only offers a reload when the server's version is *higher* than the page's, so the one-time drop from 4.3/5.0 to 0.x isn't announced: pages already open on 4.3 or 5.0 need one manual reload.
 
 ## Testing
 
