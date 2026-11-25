@@ -71,10 +71,7 @@ const TEMPLATE = `
         <div class="tablewrap"><table class="data" id="itemTable"></table></div>
       </section>
     </div>
-  </div>
-  <footer class="note">
-    Game data: CCP's Static Data Export. Prices: Fuzzwork market data (market and price basis chosen in Settings) and ESI adjusted prices, updated by the server.
-  </footer>`;
+  </div>`;
 
 /* ---------- state ---------- */
 let D, S, $, items = null, adjusted = {}, adjustedAt = 0;

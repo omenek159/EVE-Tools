@@ -130,10 +130,7 @@ const TEMPLATE = `
         <div class="tablewrap"><table id="gas"></table></div>
       </section>
     </div>
-  </div>
-  <footer class="note">
-    Prices: Fuzzwork market data for the market and price basis chosen in Settings, saved on the server by its price job.
-  </footer>`;
+  </div>`;
 
 /* ---------- module state ---------- */
 let DATA, S, $, $$, init;

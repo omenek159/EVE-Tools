@@ -35,11 +35,11 @@ data/*.json              static data a module fetches (hand-maintained; game dat
 
 ## Conventions
 
-- Reuse the shared components in `app.css`: `.layout` (side column + main), `.panel`, `.fld`, `.seg`, `.cell` heat cells (`--h` 0–0.54), `.pill ok|warn|bad`, `.legend`, `footer.note`.
+- Reuse the shared components in `app.css`: `.layout` (side column + main), `.panel`, `.fld`, `.seg`, `.cell` heat cells (`--h` 0–0.54), `.pill ok|warn|bad`, `.legend`.
 - Colours only via CSS variables; check both light and dark themes.
 - Numbers: monospace, tabular, right-aligned. ISK via `isk()` (1.2M / 3.40B).
 - Browser storage only through `store` in `shared.js` (it may be unavailable). Storage is per-browser convenience, never the only copy of something important.
-- Footers (`footer.note`) name only the data sources and credits/licences, no formulas. Formulas and outside numbers are documented in the "Tools and sources" section below and in code comments, with their source; they are not shown on the page.
+- No footers, except where a licence needs a credit (`footer.note` in Incursions: the TLA waitlist, MIT). Formulas, outside numbers and data sources are documented in the "Tools and sources" section below and in code comments, with their source; they are not shown on the page.
 - Market prices only through `js/prices.js`: call `want(ids)` in `mount`, read `price(id)`, re-render on `on(fn)`. No market/basis pickers or price status inside modules: they live in Settings and the header.
 
 ## Hosting
