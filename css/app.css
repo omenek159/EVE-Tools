@@ -261,9 +261,12 @@ p.note{font-size:13px;color:var(--muted);margin:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
 /* ---------- reprocessing ---------- */
-.skill-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px}
-.skill-grid label.fld{font-size:10px;justify-content:space-between}
-.skill-grid select{padding:4px 6px}
+.skill-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 14px}
+.skill-grid .sk-h{grid-column:1/-1;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:600;margin-top:6px}
+.skill-grid .sk-h:first-child{margin-top:0}
+.skill-grid .sk{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;min-width:0}
+.skill-grid .sk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.skill-grid .sk select{width:52px;padding:2px 4px;flex:none}
 .yields{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--muted)}
 .yields .yield b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--fg)}
 .yields p.note{flex-basis:100%;font-size:12px}

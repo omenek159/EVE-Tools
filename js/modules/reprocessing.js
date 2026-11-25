@@ -203,11 +203,19 @@ export async function mount(el) {
   $("implant").innerHTML = `<option value="">None</option>` + Object.entries(D.implants)
     .sort((a, b) => a[1].bonus - b[1].bonus).map(([id, i]) => `<option value="${id}">${esc(i.name)} (+${i.bonus}%)</option>`).join("");
 
-  // Skills: the two general ones first, then the processing skills by name.
-  const skillIds = [T_REPRO, T_REPRO_EFF].concat(Object.keys(D.skills).map(Number).filter(id => id !== T_REPRO && id !== T_REPRO_EFF)
-    .sort((a, b) => D.skills[a].name.localeCompare(D.skills[b].name)));
-  $("skills").innerHTML = skillIds.map(id => `<label class="fld">${esc(D.skills[id].name)}<select data-skill="${id}">
-      ${[0, 1, 2, 3, 4, 5].map(l => `<option>${l}</option>`).join("")}</select></label>`).join("");
+  // Skills in groups, each in game order (ore by tier, moon ore by rarity). Skills the SDE adds later go to "Other".
+  // Labels drop "Processing" ("Simple Ore Processing" -> "Simple"); the full name is in the tooltip.
+  const GROUPS = [
+    ["General", [T_REPRO, T_REPRO_EFF], n => n],
+    ["Ore", [60377, 60378, 60379, 60380, 60381, 12189, 90040], n => n.replace(/\s+Ore Processing$/i, "")],
+    ["Moon ore", [46152, 46153, 46154, 46155, 46156], n => n.replace(/\s+Moon Ore Processing$/i, "")],
+    ["Other", [18025, T_SCRAP, 90398], n => n.replace(/\s+Processing$/i, "")],
+  ];
+  const placed = new Set(GROUPS.flatMap(g => g[1]));
+  GROUPS[3][1] = GROUPS[3][1].concat(Object.keys(D.skills).map(Number).filter(id => !placed.has(id)));
+  const levels = [0, 1, 2, 3, 4, 5].map(l => `<option>${l}</option>`).join("");
+  $("skills").innerHTML = GROUPS.map(([title, ids, label]) => `<div class="sk-h">${title}</div>` + ids.filter(id => D.skills[id])
+    .map(id => `<label class="sk" title="${esc(D.skills[id].name)}"><span>${esc(label(D.skills[id].name))}</span><select data-skill="${id}" aria-label="${esc(D.skills[id].name)}">${levels}</select></label>`).join("")).join("");
 
   function fill() {
     $("structure").value = S.structure in D.structures || S.structure === NPC || S.structure === OTHER ? S.structure : "35835";

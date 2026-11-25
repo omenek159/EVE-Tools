@@ -52,6 +52,14 @@ data/*.json              static data a module fetches (hand-maintained; game dat
 
 - `php <cron folder>/prices.php <site folder>` — every 2 minutes, once per instance. Writes `cache/prices_<market>.json`, `cache/prices_state.json` (`runAt`, `error`) and, at most hourly, `cache/adjusted_prices.json` (ESI `/markets/prices` adjusted prices, used for reprocessing tax). `--force` fetches everything now.
 - `php <cron folder>/sde.php <site folder>` — every hour, once per instance. Reads CCP's `latest.jsonl` (build number); only when the build changed it downloads the JSONL zip (~100 MB, needs ~700 MB free while unpacking), streams the needed files and writes `cache/sde/reprocessing.json` + `state.json`. A new file replaces the old one only after `validateReprocessing()` passes (known values confirmed in game); the previous copy is kept as `*.prev.json`. `--force` extracts again. Exits 1 and keeps the old data on any error.
+- Server paths (use these when giving the user commands; PHP CLI is `/usr/local/bin/php`):
+
+  | Instance | Site folder | Cron folder |
+  |---|---|---|
+  | live (eve.omenek.pl) | `/home/vh22350/eve_html` | `/home/vh22350/eve_cron` |
+  | test (evetest.omenek.pl) | `/home/vh22350/evetest_html` | `/home/vh22350/evetest_cron` |
+
+  e.g. `/usr/local/bin/php /home/vh22350/evetest_cron/prices.php /home/vh22350/evetest_html` (cron, every 2 min) and `.../sde.php ...` (hourly); add `--force --verbose` to run one by hand.
 - Jobs print nothing when there was nothing to do (`--verbose` shows every step), so the host's cron mail only carries news and errors; they exit 1 on errors.
 - Game data that changes with patches (type materials, batch sizes, skill/rig/structure bonuses) comes from this job, not from files in the repo; nothing in `cache/` is ever committed or deployed.
 - Outgoing requests from server jobs use User-Agent `EVE-Tools by omenek`.
