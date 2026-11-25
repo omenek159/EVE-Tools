@@ -1,6 +1,6 @@
 // Ore Profit Calculator module (ported from the standalone Ore Profit Calculator v26).
 // Prices come from the app's shared price service (js/prices.js: market and basis chosen in Settings).
-import { r2, nf2, nf0, isk, fullIsk, esc, showTip, hideTip, store } from "../shared.js";
+import { r2, nf2, nf0, isk, fullIsk, esc, showTip, hideTip, store, sendTo } from "../shared.js";
 import * as P from "../prices.js";
 
 const KEY = "oreProfitCalc.v1";
@@ -50,7 +50,7 @@ const TEMPLATE = `
         <div class="head"><h2 id="h-belt">Mining session</h2><span class="sess-sum" id="sessSum"></span></div>
 
         <details class="fold" id="cargoBox">
-          <summary><h3>Cargo hold</h3><span class="sum" id="cargoSum"></span></summary>
+          <summary><h3>Cargo hold</h3><span class="sum" id="cargoSum"></span><button class="btn rp-btn" id="cargoRp" type="button" disabled title="Add cargo first" aria-label="Reprocess"><svg class="rp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-13.7 5.6M4 12a8 8 0 0 1 13.7-5.6"/><path d="M18 2.8v3.9h-3.9M6 21.2v-3.9h3.9"/></svg><span class="rp-label">Reprocess</span></button></summary>
           <div class="fold-body">
             <textarea id="cargo" class="mono" spellcheck="false" aria-label="Hold contents" placeholder="Open your ore or gas hold in list view, select all (Ctrl+A), copy (Ctrl+C) and paste here." style="height:120px"></textarea>
             <div class="scan-actions">
@@ -73,7 +73,7 @@ const TEMPLATE = `
           </div>
         </details>
         <details class="fold" id="scanBox">
-          <summary><h3>Scanner results</h3><span class="sum" id="scanSum">paste results from the Mining scanner</span></summary>
+          <summary><h3>Scanner results</h3><span class="sum" id="scanSum">paste results from the Mining scanner</span><button class="btn rp-btn" id="scanRp" type="button" disabled title="Calculate belt value first" aria-label="Reprocess"><svg class="rp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-13.7 5.6M4 12a8 8 0 0 1 13.7-5.6"/><path d="M18 2.8v3.9h-3.9M6 21.2v-3.9h3.9"/></svg><span class="rp-label">Reprocess</span></button></summary>
           <div class="fold-body">
             <textarea id="scan" class="mono" spellcheck="false" aria-label="Mining scanner results" placeholder="In the Mining scanner, select the results (Ctrl+A), copy (Ctrl+C) and paste here." style="height:220px"></textarea>
             <div class="scan-actions">
@@ -716,12 +716,51 @@ export async function mount(el) {
   $("clearCargo").addEventListener("click", () => { $("cargo").value = ""; cargo = null; cargoErr.hidden = true; renderBelt(); });
   $("clearBelt").addEventListener("click", () => { $("scan").value = ""; belt = null; beltErr.hidden = true; renderBelt(); });
 
+  /* ---------- Reprocess: send the hold's or the belt's ore to the Reprocessing tool ----------
+     Active once Add cargo / Calculate belt value has run on the current paste; editing the paste turns it off
+     until the next calculation. Gas is left out (it can't be reprocessed). The game's estimated value goes along
+     when the paste had one for every stack of that item (Reprocessing uses it only when there's no market price). */
+  const fresh = { cargo: false, scan: false };
+  function syncRp() {
+    $("cargoRp").disabled = !(cargo && fresh.cargo && cargo.items.some(it => !isGas(it.ore)));
+    $("scanRp").disabled = !(belt && fresh.scan);
+    $("cargoRp").title = $("cargoRp").disabled ? "Add cargo first" : "Reprocess the ore in the hold";
+    $("scanRp").title = $("scanRp").disabled ? "Calculate belt value first" : "Reprocess the ore in the belt";
+  }
+  const line = (name, qty, est) => `${name}\t${qty}` + (est > 0 ? `\t${est.toFixed(2)} ISK` : "");
+  function cargoText() {
+    return cargo.items.filter(it => !isGas(it.ore))
+      .map(it => line(it.name, it.qty, it.estQty === it.qty ? it.estIsk : 0)).join("\n");
+  }
+  function beltText() {
+    const by = new Map();      // ore name -> {units, isk}; isk null once a rock without a scanner value is seen
+    for (const r of belt.rocks) {
+      const e = by.get(r.ore.name) || { units: 0, isk: 0 };
+      e.units += r.units; e.isk = e.isk == null || r.scanIsk == null || isNaN(r.scanIsk) ? null : e.isk + r.scanIsk;
+      by.set(r.ore.name, e);
+    }
+    return [...by].map(([name, e]) => line(name, e.units, e.isk || 0)).join("\n");
+  }
+  for (const [btn, box, key, text] of [["cargoRp", "cargo", "cargo", cargoText], ["scanRp", "scan", "scan", beltText]]) {
+    $(btn).addEventListener("click", e => {
+      e.preventDefault(); e.stopPropagation();          // the button sits in the section's title: don't fold it
+      if (!$(btn).disabled) sendTo("reprocessing", { text: text(), from: key === "cargo" ? "cargo hold" : "scanner results" });
+    });
+    $(box).addEventListener("input", () => { fresh[key] = false; syncRp(); });
+  }
+  // These run after the handlers above: a paste that didn't parse shows an error and leaves the button off.
+  $("calcCargo").addEventListener("click", () => { fresh.cargo = !!cargo && cargoErr.hidden; syncRp(); });
+  $("calcBelt").addEventListener("click", () => { fresh.scan = !!belt && beltErr.hidden; syncRp(); });
+  $("clearCargo").addEventListener("click", () => { fresh.cargo = false; syncRp(); });
+  $("clearBelt").addEventListener("click", () => { fresh.scan = false; syncRp(); });
+
   /* ---------- (re)initialise from state ---------- */
   init = () => {
     sessHEl.value = S.sess.h; sessMEl.value = S.sess.m; bestEl.checked = !!S.sess.best;
     sessEndEl.value = S.sess.end || ""; sharePctEl.value = S.sess.pct;
     syncUnit(); applyMode(); applyFleetTab();
     renderMiners(); renderHuffers(); renderTables();
+    fresh.cargo = fresh.scan = false; syncRp();
   };
   init();
   P.want(allIds());
