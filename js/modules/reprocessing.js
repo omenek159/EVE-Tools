@@ -73,12 +73,7 @@ const TEMPLATE = `
     </div>
   </div>
   <footer class="note">
-    Yield (ore, moon ore, ice) = base × security × structure bonus × (1 + 3% × Reprocessing) × (1 + 2% × Reprocessing Efficiency) × (1 + 2% × the ore's processing skill) × (1 + implant).
-    Base = 50% (Upwell reprocessing service), or the rig's 51% (T1) / 53% (T2) for the kind of ore the rig is for; with a rig, security multiplies it by 1 / 1.06 / 1.12 (high / low / null and WH). Structure bonus: Athanor 2%, Tatara 5.5%, ... An NPC station uses its own yield instead (most are 50%) and has no rigs or structure bonus.
-    Scrapmetal (everything that isn't ore or ice) = base × (1 + 2% × Scrapmetal Processing): 50% in a structure or the station's own yield, at most 55%; rigs, structure bonuses, Reprocessing skills and implants don't apply (EVE University wiki, Reprocessing).
-    Items reprocess in whole batches (100 units for ore, 1 for most items); what's left over stays unprocessed. Output per material = batches × amount per batch × yield, rounded down.
-    Tax = tax % × output amount × CCP's adjusted price (ESI), paid in ISK. Input value = the game's estimated price from the paste (market price when the paste has none).
-    Game data: CCP's Static Data Export (SDE), extracted on the server. Prices: Fuzzwork market aggregates (market and price basis chosen in Settings) and ESI adjusted prices, saved on the server by its price job.
+    Game data: CCP's Static Data Export. Prices: Fuzzwork market data (market and price basis chosen in Settings) and ESI adjusted prices, updated by the server.
   </footer>`;
 
 /* ---------- state ---------- */

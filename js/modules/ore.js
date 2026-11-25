@@ -132,9 +132,7 @@ const TEMPLATE = `
     </div>
   </div>
   <footer class="note">
-    Income = fleet yield (m³/s) × 3600 × ISK per m³. ISK per m³ = unit price ÷ raw ore volume, rounded to 0.01, so compressed and raw compare on the same mined m³.
-    Miner yield = module yield × (1 + crit chance % × crit bonus %) + drone yield. Gas uses the huffer yield. Belt value = units × unit price; time to clear and session cargo use the fleet yield.
-    Prices: Fuzzwork market aggregates for the market and price basis chosen in Settings, saved on your server by its price job (cron/prices.php). Fuzzwork publishes new data about every 30 minutes; the job checks for it every 2 minutes and the page picks it up within a few minutes.
+    Prices: Fuzzwork market data for the market and price basis chosen in Settings, saved on the server by its price job.
   </footer>`;
 
 /* ---------- module state ---------- */
