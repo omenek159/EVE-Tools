@@ -123,7 +123,7 @@ const clampWave = v => Math.min(MAX_WAVE, Math.max(MIN_WAVE, Math.round(+v) || M
 const count = id => Math.max(0, Math.floor(+S.ships[id] || 0));
 const shipsOnGrid = () => SHIPS.reduce((a, [id]) => a + count(id), 0);
 const rampancy = () => SHIPS.reduce((a, [id, , r]) => a + count(id) * r, 0);
-const pilots = () => Math.max(1, shipsOnGrid());
+const pilots = () => shipsOnGrid();   // 0 with no ships: per pilot shows 0 in the tiles and "-" in the list
 const share = n => n * (n + 1) / (MAX_WAVE * (MAX_WAVE + 1));
 const pct = x => (x * 100).toFixed(1) + "%";
 const m = () => baseData(S.cls, threatOf(rampancy()));
@@ -174,8 +174,8 @@ function renderTiles() {
   $("#tiles").innerHTML = `
     <div class="tile lead"><span>Data after wave ${n}</span><b>${nf0.format(tot)}</b><small>${nf0.format(tot * VOLUME)} m³</small></div>
     <div class="tile lead"><span>Worth</span><b>${isk(val)}</b><small>${nf0.format(PRICE)} ISK per unit</small></div>
-    <div class="tile"><span>Per pilot</span><b>${isk(val / p)}</b><small>${p} pilot${p === 1 ? "" : "s"} · ${nf0.format(tot / p)} data</small></div>
-    <div class="tile"><span>Next wave adds</span><b>${n < MAX_WAVE ? isk(gainNext * PRICE) : "—"}</b><small>${n < MAX_WAVE ? `${nf0.format(gainNext)} data · ${isk(gainNext * PRICE / p)} per pilot` : "last wave"}</small></div>
+    <div class="tile"><span>Per pilot</span><b>${p ? isk(val / p) : "0"}</b><small>${p ? `${p} pilot${p === 1 ? "" : "s"} · ${nf0.format(tot / p)} data` : "no ships on grid"}</small></div>
+    <div class="tile"><span>Next wave adds</span><b>${n < MAX_WAVE ? isk(gainNext * PRICE) : "—"}</b><small>${n < MAX_WAVE ? `${nf0.format(gainNext)} data · ${p ? isk(gainNext * PRICE / p) : "0"} per pilot` : "last wave"}</small></div>
     <div class="tile"><span>Share of full run</span><b>${pct(share(n))}</b><small>full run ${nf0.format(mm * FULL_RUN)} data · ${isk(mm * FULL_RUN * PRICE)}</small></div>`;
   $("#copyRow").textContent = `Copy wave ${n}`;
 }
@@ -189,7 +189,7 @@ function renderTable() {
       return `<tr${w === n ? ` class="cur" aria-selected="true"` : ` aria-selected="false"`} data-wave="${w}" tabindex="0">
         <td>${w}${SWARM_WAVES.has(w) ? ` <span class="pill swarm" title="Two Nanoswarms become vulnerable on this wave">Nanoswarm</span>` : ""}</td>
         <td>${nf0.format(waveGain(mm, w))}</td><td>${nf0.format(d)}</td>
-        <td>${isk(d * PRICE)}</td><td>${isk(d * PRICE / p)}</td>
+        <td>${isk(d * PRICE)}</td><td>${p ? isk(d * PRICE / p) : "-"}</td>
         <td><span class="share">${pct(sh)}<span class="bar"><i style="width:${pct(sh)}"></i></span></span></td></tr>`;
     }).join("")}</tbody>`;
 }
@@ -206,7 +206,7 @@ function selectWave(w) {
 
 function copyText() {
   const mm = m(), n = S.wave, d = totalData(mm, n), v = d * PRICE;
-  return `Wave ${n}\nFabricator data: ${nf0.format(d)}\nTotal worth: ${isk(v)} (${isk(v / pilots())} per pilot)\n${pct(share(n))} of full run`;
+  return `Wave ${n}\nFabricator data: ${nf0.format(d)}\nTotal worth: ${isk(v)} (${pilots() ? isk(v / pilots()) : "0"} per pilot)\n${pct(share(n))} of full run`;
 }
 async function copy() {
   const txt = copyText(), b = $("#copyRow");
