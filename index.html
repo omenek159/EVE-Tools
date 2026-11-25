@@ -29,9 +29,12 @@
         <path d="M14.2 24.5h5v1.6h-3.4v1.1h3v1.5h-3v1.2h3.4v1.6h-5z" fill="currentColor"/>
         <path d="M20.8 24.5h5v1.6h-1.7v5.4h-1.6v-5.4h-1.7z" class="acc"/>
       </svg>
-      <div class="logo-name">EVE <span>Tools</span> <small class="logo-by">by omenek</small></div>
+      <div class="logo-text"><div class="logo-name">EVE <span>Tools</span></div><small class="logo-by">by omenek</small></div>
     </a>
     <div class="spacer"></div>
+    <button class="price-status" id="priceStatus" type="button" aria-controls="settings" hidden>
+      <span class="dot" id="priceDot"></span><span class="ps-text" id="priceShort"></span>
+    </button>
     <button class="icon-btn" id="openSettings" type="button" aria-haspopup="dialog" aria-controls="settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       <span>Settings</span>
@@ -70,6 +73,16 @@
         <button type="button" data-theme="dark">Dark</button>
       </div>
     </div>
+    <div class="grp" id="priceGrp">
+      <h2>Market prices</h2>
+      <div class="row2">
+        <label class="fld">Market<select id="setHub"></select></label>
+        <label class="fld">Price basis<select id="setBasis"></select></label>
+      </div>
+      <div class="status"><span class="dot" id="priceDot2"></span><span id="priceLong"></span></div>
+      <div class="msg err" id="priceErr" role="alert" hidden><span id="priceErrText"></span> <button class="btn-link" id="priceRetry" type="button">Try again</button></div>
+      <span class="hint">Used by every tool. Prices are Fuzzwork market data, saved on the server when Fuzzwork publishes new data (about every 30 minutes); the page picks them up within a few minutes.</span>
+    </div>
     <div class="grp">
       <h2>Start page</h2>
       <select id="setStart" aria-label="Start page"></select>
@@ -77,7 +90,7 @@
     </div>
     <div class="grp">
       <h2>Saved data</h2>
-      <span class="hint">Your fleets, prices and inputs are kept in this browser only.</span>
+      <span class="hint">Your fleets, settings and inputs are kept in this browser only.</span>
       <div id="resetButtons" style="display:flex;flex-direction:column;gap:8px"></div>
       <span class="msg" id="resetMsg" role="status"></span>
     </div>

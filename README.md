@@ -3,6 +3,7 @@
 Calculators for EVE Online in one web app.
 
 - **Ore prices** — ISK per hour by ore and grade (compressed vs raw) and gas for your fleet of miners and huffers; cargo-hold value and share split; belt value from the mining scanner; session estimates. Prices from Fuzzwork.
+- **Reprocessing** — what pasted items (ore, ice, modules, ships, …) reprocess into, the tax, and whether reprocessing beats selling them; structure, rigs, skills and implants.
 - **Incursions** — ISK/h and LP from your pasted wallet journal (based on the TLA Incursion calculator).
 
 ## Hosting

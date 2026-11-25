@@ -1,6 +1,7 @@
 // App shell: module registry, menu, hash routing, lazy module loading, settings drawer.
-import { hideTip, store } from "./shared.js";
+import { hideTip, store, esc } from "./shared.js";
 import { APP_VERSION } from "./version.js";
+import * as P from "./prices.js";
 
 /* ---------- module registry ----------
    To add a tool: create js/modules/<name>.js exporting mount(el) and optionally reset(),
@@ -8,6 +9,8 @@ import { APP_VERSION } from "./version.js";
 const MODULES = [
   { id: "ore-prices", label: "Ore prices", file: "./modules/ore.js",
     resetLabel: "Reset ore calculator", keys: ["oreProfitCalc.v1"] },
+  { id: "reprocessing", label: "Reprocessing", file: "./modules/reprocessing.js",
+    resetLabel: "Reset reprocessing settings", keys: ["eveTools.reprocessing.v1"] },
   { id: "incursions", label: "Incursions", file: "./modules/incursions.js", keys: [] },   // saves nothing
 ];
 const LIVE = MODULES.filter(m => !m.soon);
@@ -88,11 +91,41 @@ resets.addEventListener("click", async e => {
   resetMsg.className = "msg ok"; resetMsg.textContent = `${m.label}: done.`;
 });
 
+/* ---------- market prices (shared by every tool): status in the header, choices in Settings ---------- */
+const hubSel = document.getElementById("setHub"), basisSel = document.getElementById("setBasis");
+basisSel.innerHTML = Object.entries(P.BASES).map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join("");
+hubSel.addEventListener("change", () => P.setHub(hubSel.value));
+basisSel.addEventListener("change", () => P.setBasis(basisSel.value));
+document.getElementById("priceRetry").addEventListener("click", () => P.retry());
+document.getElementById("priceStatus").addEventListener("click", () => { openSettings(); hubSel.focus(); });
+const fmtWhen = t => { const d = new Date(t); return d.toLocaleString([], d.toDateString() === new Date().toDateString()
+  ? { hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
+function renderPrices() {
+  const s = P.status(), btn = document.getElementById("priceStatus");
+  if (hubSel.options.length !== Object.keys(P.getMarkets()).length)
+    hubSel.innerHTML = Object.entries(P.getMarkets()).map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join("");
+  hubSel.value = P.hub(); basisSel.value = P.basis();
+  for (const id of ["priceDot", "priceDot2"]) document.getElementById(id).className = "dot " + (s.state === "loading" || s.state === "none" ? "" : s.state);
+  const short = s.at ? `${P.hubName()} · ${fmtWhen(s.at)}` : s.noServer ? "No prices" : s.error ? "Prices: error" : "Loading prices…";
+  document.getElementById("priceShort").textContent = short + (s.jobLate ? " ⚠" : "");
+  btn.title = s.at ? `${P.hubName()} prices (${P.basisName().toLowerCase()}), updated ${fmtWhen(s.at)}${s.jobLate ? ". The server's price job hasn't run for a while, so they may be out of date." : ""}. Click to change.` : short;
+  btn.hidden = !P.active();
+  document.getElementById("priceLong").innerHTML = s.at
+    ? `${esc(P.hubName())}, ${s.items} items. Updated ${esc(fmtWhen(s.at))}. ` + (s.jobLate
+      ? `<span class="warnsum">⚠ The server's price job hasn't run since ${esc(fmtWhen(s.jobAt))}, so these prices may be out of date.</span>` : "They refresh automatically.")
+    : s.noServer ? "No prices." : `Loading ${esc(P.hubName())} prices…`;
+  document.getElementById("priceErrText").textContent = s.error;
+  document.getElementById("priceErr").hidden = !s.error;
+}
+P.on(renderPrices);
+P.ready.then(renderPrices);
+renderPrices();
+
 /* ---------- update check ----------
    Re-read js/version.js from the server, bypassing the browser cache. When its APP_VERSION is newer than the one
    this page loaded, offer a reload. Versions are "MAJOR.MINOR" (a plain "3" counts as "3.0"). */
 const VERSION_URL = new URL("./version.js", import.meta.url);
-const SHELL_FILES = ["../index.html", "../css/app.css", "./app.js", "./shared.js", "./version.js", "../data/ores.json"];
+const SHELL_FILES = ["../index.html", "../css/app.css", "./app.js", "./shared.js", "./prices.js", "./version.js", "../data/ores.json", "../data/markets.json"];
 let lastCheck = 0, checking = false, noServer = false, dismissed = "";
 const VERSION_RE = /APP_VERSION\s*=\s*["']?(\d+(?:\.\d+)?)/;
 // Compare "MAJOR.MINOR" versions part by part (so 3.10 is newer than 3.9): >0 when a is newer than b.

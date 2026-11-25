@@ -46,3 +46,14 @@ export const store = {
   set(key, val) { try { localStorage.setItem(key, val); } catch (e) {} },
   remove(key) { try { localStorage.removeItem(key); } catch (e) {} },
 };
+
+/* ---------- hand-off between tools ----------
+   sendTo("reprocessing", data) leaves data for that tool and opens its tab; the tool picks it up with
+   takeFor("reprocessing") when it mounts, and on the "eve:handoff" event if it's already loaded. */
+const inbox = new Map();
+export function sendTo(tool, data) {
+  inbox.set(tool, data);
+  dispatchEvent(new CustomEvent("eve:handoff", { detail: tool }));
+  location.hash = "#" + tool;
+}
+export function takeFor(tool) { const d = inbox.get(tool); inbox.delete(tool); return d; }

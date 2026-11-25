@@ -1,12 +1,10 @@
 // Ore Profit Calculator module (ported from the standalone Ore Profit Calculator v26).
-// The app ships without prices. They come only from prices.php on the same server, which serves the copy saved by
-// the server's price job (cron/prices.php: Fuzzwork data, fetched when Fuzzwork publishes, about every 30 minutes):
-// loaded on first launch, then kept up to date.
-import { r2, nf2, nf0, isk, fullIsk, esc, showTip, hideTip, store } from "../shared.js";
+// Prices come from the app's shared price service (js/prices.js: market and basis chosen in Settings).
+import { r2, nf2, nf0, isk, fullIsk, esc, showTip, hideTip, store, sendTo } from "../shared.js";
+import * as P from "../prices.js";
 
 const KEY = "oreProfitCalc.v1";
 const DATA_URL = new URL("../../data/ores.json", import.meta.url);
-const PRICES_URL = new URL("../../prices.php", import.meta.url);
 const SECTIONS = [
   { title: "Moon ores", from: 29, to: 33, cols: ["Base", "Brimful", "Glistening", ""] },
   { title: "Ores", from: 0, to: 29, cols: ["Base", "II-Grade", "III-Grade", "IV-Grade"] },
@@ -15,9 +13,6 @@ const GAS_SECTIONS = [                 // wormhole gas first, then k-space gas
   { title: "Wormhole gas", from: 33, to: 42 },
   { title: "K-space gas", from: 42, to: 60 },
 ];
-const SYNC_EVERY = 2 * 60 * 1000;      // ask for anything newer this often (the server's price job runs this often too)
-const JOB_LATE = 15 * 60 * 1000;       // the server's price job hasn't run for this long: say prices may be out of date
-const NO_PRICES = hub => ({ source: "none", at: null, hub, data: {} });
 
 const TEMPLATE = `
   <div class="head">
@@ -26,32 +21,6 @@ const TEMPLATE = `
   </div>
   <div class="layout">
     <aside class="side">
-      <section class="panel" aria-labelledby="h-prices">
-        <h2 id="h-prices">Market prices</h2>
-        <div class="row2">
-          <label class="fld">Market
-            <select id="hub">
-              <option value="station:60003760">Jita IV-4</option>
-              <option value="region:10000002">The Forge (region)</option>
-              <option value="station:60008494">Amarr VIII</option>
-              <option value="station:60011866">Dodixie IX</option>
-              <option value="station:60004588">Rens VI</option>
-              <option value="station:60005686">Hek VIII</option>
-            </select>
-          </label>
-          <label class="fld">Price basis
-            <select id="basis">
-              <option value="sellPct">Sell, 5th percentile</option>
-              <option value="sellMin">Sell, lowest</option>
-              <option value="buyMax">Buy, highest</option>
-              <option value="buyPct">Buy, 5th percentile</option>
-              <option value="split">Split (buy/sell mid)</option>
-            </select>
-          </label>
-        </div>
-        <div class="status"><span class="dot" id="statusDot"></span><span id="statusText"></span></div>
-        <div class="msg err" id="priceErr" role="alert" hidden><span id="priceErrText"></span> <button class="btn-link" id="priceRetry" type="button">Try again</button></div>
-      </section>
 
       <section class="panel" aria-labelledby="h-fleet">
         <div class="head"><h2 id="h-fleet">Fleet</h2><button class="btn" id="addMiner" type="button">+ Add miner</button></div>
@@ -81,7 +50,7 @@ const TEMPLATE = `
         <div class="head"><h2 id="h-belt">Mining session</h2><span class="sess-sum" id="sessSum"></span></div>
 
         <details class="fold" id="cargoBox">
-          <summary><h3>Cargo hold</h3><span class="sum" id="cargoSum"></span></summary>
+          <summary><h3>Cargo hold</h3><span class="sum" id="cargoSum"></span><button class="btn rp-btn" id="cargoRp" type="button" disabled title="Add cargo first" aria-label="Reprocess"><svg class="rp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-13.7 5.6M4 12a8 8 0 0 1 13.7-5.6"/><path d="M18 2.8v3.9h-3.9M6 21.2v-3.9h3.9"/></svg><span class="rp-label">Reprocess</span></button></summary>
           <div class="fold-body">
             <textarea id="cargo" class="mono" spellcheck="false" aria-label="Hold contents" placeholder="Open your ore or gas hold in list view, select all (Ctrl+A), copy (Ctrl+C) and paste here." style="height:120px"></textarea>
             <div class="scan-actions">
@@ -104,7 +73,7 @@ const TEMPLATE = `
           </div>
         </details>
         <details class="fold" id="scanBox">
-          <summary><h3>Scanner results</h3><span class="sum" id="scanSum">paste results from the Mining scanner</span></summary>
+          <summary><h3>Scanner results</h3><span class="sum" id="scanSum">paste results from the Mining scanner</span><button class="btn rp-btn" id="scanRp" type="button" disabled title="Calculate belt value first" aria-label="Reprocess"><svg class="rp-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-13.7 5.6M4 12a8 8 0 0 1 13.7-5.6"/><path d="M18 2.8v3.9h-3.9M6 21.2v-3.9h3.9"/></svg><span class="rp-label">Reprocess</span></button></summary>
           <div class="fold-body">
             <textarea id="scan" class="mono" spellcheck="false" aria-label="Mining scanner results" placeholder="In the Mining scanner, select the results (Ctrl+A), copy (Ctrl+C) and paste here." style="height:220px"></textarea>
             <div class="scan-actions">
@@ -161,44 +130,33 @@ const TEMPLATE = `
         <div class="tablewrap"><table id="gas"></table></div>
       </section>
     </div>
-  </div>
-  <footer class="note">
-    Income = fleet yield (m³/s) × 3600 × ISK per m³. ISK per m³ = unit price ÷ raw ore volume, rounded to 0.01, so compressed and raw compare on the same mined m³.
-    Miner yield = module yield × (1 + crit chance % × crit bonus %) + drone yield. Gas uses the huffer yield. Belt value = units × unit price; time to clear and session cargo use the fleet yield.
-    Prices: Fuzzwork market aggregates, saved on your server by its price job (cron/prices.php) and loaded through prices.php (one shared copy). Fuzzwork publishes new data about every 30 minutes; the job checks for it every 2 minutes and the page picks it up within a few minutes.
-  </footer>`;
+  </div>`;
 
 /* ---------- module state ---------- */
-let DATA, S, $, $$, init, syncNow;
+let DATA, S, $, $$, init;
 let belt = null;              // {rocks, unknown} from the last Calculate; never saved
 let cargo = null;             // {items, skipped} from the last Add cargo; never saved
-let lastSync = 0, syncing = false, pending = false;   // pending: another check was asked for while one was running
-let retryStep = 0, retryTimer = null;                  // automatic retries after a failed check
-const RETRY_MIN = [1, 2, 5];                           // minutes to wait after the 1st, 2nd, 3rd+ failure in a row
-let noServer = false;         // prices.php isn't available here: stop syncing, say so
-let jobAt = null;             // when the server's price job last ran (ms), from the last reply; never saved
 let BY_NAME, CARGO_NAMES;
 
 function defaults() {
   return {
     miners: DATA.miners.slice(0, 1).map((m, i) => ({ name: "Miner " + (i + 1), mod: m[0], crit: +(m[1] * 100).toFixed(4), mul: +(m[2] * 100).toFixed(2), drone: m[3], on: true })),
     huffers: [{ name: "Huffer 1", mod: DATA.huff, on: true }], fleetTab: "ore",
-    hub: "station:60003760", jitaDefault: true, critPct: true, basis: "sellPct", unit: "h",
-    prices: NO_PRICES("station:60003760"),
+    jitaDefault: true, critPct: true, unit: "h",
   };
 }
 function loadState() {
   const stored = store.getJSON(KEY, null);
   S = Object.assign(defaults(), stored || {});
   // One-time upgrades of settings saved by older versions of the calculator.
-  if (stored && !stored.jitaDefault) { S.hub = "station:60003760"; S.jitaDefault = true; }
+  if (stored && !stored.jitaDefault) S.jitaDefault = true;
+  // Market, price basis and prices moved to the app's shared price service (js/prices.js takes them over once).
   // The single "gas huffers total" field became a list of huffers.
   if (stored && !Array.isArray(stored.huffers)) S.huffers = [{ name: "Huffer 1", mod: +(stored.huff ?? DATA.huff) || 0, on: true }];
   delete S.huff;
   // Crit bonus used to be stored as a factor (2.4); it is now a percent (240) like the game shows.
   if (stored && !stored.critPct) { (S.miners || []).forEach(m => { if (+m.mul > 0 && +m.mul <= 20) m.mul = +(m.mul * 100).toFixed(2); }); S.critPct = true; }
-  // Older versions shipped snapshot prices from a spreadsheet; drop them so fresh prices load on first launch.
-  if (!S.prices || S.prices.source === "sheet") S.prices = NO_PRICES(S.hub);
+  delete S.prices; delete S.hub; delete S.basis;
   S.sess = Object.assign({ h: 1, m: 0, best: false, pct: 5, mode: "dur", end: "", unlimited: false }, S.sess || {});
 }
 const save = () => store.setJSON(KEY, S);
@@ -207,20 +165,7 @@ const save = () => store.setJSON(KEY, S);
 const minerYield = m => r2((+m.mod || 0) * (1 + (+m.crit || 0) / 100 * (+m.mul || 0) / 100) + (+m.drone || 0));
 const fleetYield = () => r2(S.miners.filter(m => m.on).reduce((a, m) => a + minerYield(m), 0));
 const gasYield = () => r2(S.huffers.filter(h => h.on).reduce((a, h) => a + (+h.mod || 0), 0));
-function price(id) {
-  const d = S.prices.data[id]; if (!d) return null;
-  const n = v => (v == null || v === "") ? null : parseFloat(v);
-  const s = d.sell || {}, b = d.buy || {};
-  let v;
-  switch (S.basis) {
-    case "sellPct": v = n(s.percentile); break;
-    case "sellMin": v = n(s.min); break;
-    case "buyMax": v = n(b.max); break;
-    case "buyPct": v = n(b.percentile); break;
-    case "split": { const x = n(b.max), y = n(s.min); v = (x == null || y == null) ? null : (x + y) / 2; break; }
-  }
-  return (v == null || isNaN(v)) ? null : v;
-}
+const price = id => P.price(id);
 function calc(item, y) {
   const [name, rid, rvol, cid, cvol] = item;
   const rp = price(rid), cp = cid ? price(cid) : null;
@@ -400,7 +345,7 @@ export async function mount(el) {
     const fy = fleetYield(), unit = S.unit, q = ($("filter").value || "").trim().toLowerCase();
     const val = c => unit === "h" ? c.cH : c.cM3;
     const fmt = v => unit === "h" ? isk(v) : (v == null ? "—" : nf2.format(v));
-    const none = S.prices.source === "none" ? "—" : "no orders";
+    const none = P.status().at ? "no orders" : "—";
     CELLS.clear();
     let html = "";
     for (const sec of SECTIONS) {
@@ -471,102 +416,9 @@ export async function mount(el) {
   oresEl.addEventListener("focusin", e => { const b = e.target.closest(".cell[data-key]"); if (b) oreTip(b); });
   oresEl.addEventListener("focusout", hideTip);
 
-  /* ---------- prices ---------- */
-  const hubEl = $("hub"), basisEl = $("basis");
-  const HUBNAME = v => hubEl.querySelector(`option[value="${v}"]`)?.textContent || v;
-  basisEl.addEventListener("change", () => { S.basis = basisEl.value; save(); renderStatus(); renderTables(); });
-  hubEl.addEventListener("change", () => { S.hub = hubEl.value; save(); renderStatus(); serverSync(); });   // load the new market's prices straight away
+  /* ---------- prices (shared price service) ---------- */
   const allIds = () => { const s = new Set(); DATA.fam.flat().forEach(it => { s.add(it[1]); if (it[3]) s.add(it[3]); }); return [...s]; };
-  const priceUrl = since => `${PRICES_URL}?market=${encodeURIComponent(S.hub)}&types=${allIds().join(",")}${since ? `&since=${since}` : ""}`;
-
-  const fmtWhen = d => d.toLocaleString([], d.getFullYear() === new Date().getFullYear()   // year only when it isn't this one
-    ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" } : { dateStyle: "medium", timeStyle: "short" });
-  function renderStatus() {
-    const dot = $("statusDot"), t = $("statusText"), p = S.prices;
-    if (p.source === "none") {
-      dot.className = "dot err";
-      t.innerHTML = noServer ? "No prices: prices.php isn't available here. Open EVE Tools on your PHP server."
-        : $("priceErr").hidden ? "No prices yet. Loading them…" : "No prices yet.";
-      return;
-    }
-    const age = (Date.now() - p.at) / 36e5, jobLate = jobAt != null && Date.now() - jobAt > JOB_LATE;
-    dot.className = "dot " + (age > 6 || jobLate ? "old" : "ok");
-    const when = fmtWhen(new Date(p.at));
-    if (p.hub !== S.hub) {
-      t.innerHTML = noServer ? `Showing ${esc(HUBNAME(p.hub))} prices. prices.php isn't available here, so ${esc(HUBNAME(S.hub))} can't be loaded.` : `Loading ${esc(HUBNAME(S.hub))} prices…`;
-      return;
-    }
-    t.innerHTML = `${esc(HUBNAME(p.hub))}, ${Object.keys(p.data).length} items.<br>Prices updated ${esc(when)}. `
-      + (jobLate ? `<span class="warnsum">⚠ The server's price job hasn't run since ${esc(fmtWhen(new Date(jobAt)))}, so these prices may be out of date.</span>`
-        : "They refresh automatically.");
-  }
-  function acceptPrices(res) {
-    const json = res && res.data, keys = Object.keys(json || {});
-    if (!keys.length || !keys.every(k => /^\d+$/.test(k)) || !json[keys[0]].sell) throw new Error("shape");
-    S.prices = { source: "fuzzwork", at: res.fetchedAt * 1000, cached: !!res.cached, hub: res.market || S.hub, data: json };
-    save(); renderStatus(); renderTables();
-  }
-
-  // One request to prices.php returns the prices (only when newer than "since").
-  // Errors with .noServer mean there's no working prices.php here (static hosting, file://).
-  async function requestServer(since) {
-    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 20000);
-    let r;
-    try { r = await fetch(priceUrl(since), { signal: ctl.signal, headers: { Accept: "application/json" }, cache: "no-store" }); }
-    finally { clearTimeout(to); }
-    let json;
-    try { json = await r.json(); }
-    catch (_) {
-      const e = new Error(r.status === 404 ? "prices.php wasn't found next to this page." : `The server answered with HTTP ${r.status} instead of price data. Check that PHP is enabled for prices.php.`);
-      e.noServer = true; throw e;
-    }
-    if (!r.ok || json.error) throw new Error(json.error || `The server answered with HTTP ${r.status}.`);
-    return json;
-  }
-
-  // Errors are shown under the status line with a "Try again" link; failed checks also retry by themselves
-  // after 1, 2, then 5 minutes. A missing prices.php stops checking (until Try again).
-  const priceErr = $("priceErr");
-  function showError(text) { $("priceErrText").textContent = text; priceErr.hidden = false; renderStatus(); }
-  function clearError() { priceErr.hidden = true; retryStep = 0; }
-  const errText = e => e.name === "AbortError" ? "The server didn't answer within 20 seconds."
-    : e instanceof TypeError ? "Couldn't reach your server. Check your connection."
-    : e.message === "shape" ? "The price data had no prices for these items." : e.message;
-  function serverMissing() {
-    noServer = true; renderStatus();
-    showError("prices.php isn't available here. EVE Tools loads prices only through prices.php, so open it on your PHP server.");
-  }
-  $("priceRetry").addEventListener("click", () => { noServer = false; retryStep = 0; serverSync(); });
-
-  // On launch, every 2 minutes, when the tab is shown again and when the market changes, ask prices.php for anything
-  // newer. It returns the prices only when its shared copy (refreshed when Fuzzwork publishes new data) is newer
-  // than ours. A check asked for while one is running (e.g. the market changed) runs as soon as that one ends.
-  async function serverSync() {
-    if (noServer) return;
-    if (syncing) { pending = true; return; }
-    syncing = true; pending = false; lastSync = Date.now();
-    clearTimeout(retryTimer); retryTimer = null;
-    const btn = $("priceRetry"); btn.disabled = true;
-    try {
-      const have = S.prices.source === "fuzzwork" && S.prices.hub === S.hub ? Math.floor(S.prices.at / 1000) : 0;
-      const json = await requestServer(have);
-      jobAt = json.jobAt ? json.jobAt * 1000 : null;
-      if (json.data) acceptPrices(json); else renderStatus();
-      clearError();
-    } catch (e) {
-      if (e.noServer) serverMissing();
-      else {
-        const wait = RETRY_MIN[Math.min(retryStep, RETRY_MIN.length - 1)]; retryStep++;
-        showError(`${errText(e)} Trying again in ${wait} minute${wait > 1 ? "s" : ""}.`);
-        retryTimer = setTimeout(serverSync, wait * 60 * 1000);
-      }
-    } finally {
-      syncing = false; btn.disabled = false;
-      if (pending) serverSync();
-    }
-  }
-  setInterval(serverSync, SYNC_EVERY);
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastSync > 60 * 1000) serverSync(); });
+  P.on(() => renderTables());
 
   /* ---------- cargo hold ---------- */
   function renderCargo(tipKey) {
@@ -613,7 +465,7 @@ export async function mount(el) {
       unpriced.push(it.name); return null;
     }).filter(Boolean);
     const estTotal = items.reduce((a, x) => a + x.unit * x.avail, 0);
-    const priceWarn = (marketUsed.length ? `<p class="warn">No estimated value in the paste for ${marketUsed.map(esc).join(", ")}, so the market price is used instead (${esc(HUBNAME(S.prices.hub || S.hub))}, ${esc(basisEl.selectedOptions[0].textContent.toLowerCase())}). Paste from list view to use the game's estimate.</p>` : "")
+    const priceWarn = (marketUsed.length ? `<p class="warn">No estimated value in the paste for ${marketUsed.map(esc).join(", ")}, so the market price is used instead (${esc(P.hubName())}, ${esc(P.basisName().toLowerCase())}). Paste from list view to use the game's estimate.</p>` : "")
       + (unpriced.length ? `<p class="warn">No estimated value and no market price for ${unpriced.map(esc).join(", ")}; left out of the share.</p>` : "");
     if (!items.length) { sum.textContent = "no prices for this hold"; tgt.textContent = ""; out.innerHTML = priceWarn; return; }
     const target = estTotal * pct / 100;
@@ -811,7 +663,7 @@ export async function mount(el) {
         <div class="tile"><span>Time to clear</span><b>${dur(clearH)}</b><small>at ${yieldTxt}</small></div>
         <div class="tile"><span>Scanner estimate</span><b>${isk(tot.scan)}</b><small>the game's own valuation</small></div>
       </div>
-      ${S.prices.source === "none" ? `<p class="warn">No prices loaded yet, so values show as 0.</p>` : ""}
+      ${P.status().at ? "" : `<p class="warn">No prices loaded yet, so values show as 0.</p>`}
       ${tot.missC ? `<p class="warn">${tot.missC} rock${tot.missC > 1 ? "s have" : " has"} no price on this market and count as 0.</p>` : ""}
       ${unk.length ? `<p class="warn">Not recognised and left out: ${unk.map(([n, c]) => `${esc(n)} (${c})`).join(", ")}.</p>` : ""}
       <details class="sub-fold" id="byOre"${byOpen ? " open" : ""}><summary>Value by ore and grade</summary>
@@ -864,25 +716,62 @@ export async function mount(el) {
   $("clearCargo").addEventListener("click", () => { $("cargo").value = ""; cargo = null; cargoErr.hidden = true; renderBelt(); });
   $("clearBelt").addEventListener("click", () => { $("scan").value = ""; belt = null; beltErr.hidden = true; renderBelt(); });
 
+  /* ---------- Reprocess: send the hold's or the belt's ore to the Reprocessing tool ----------
+     Active once Add cargo / Calculate belt value has run on the current paste; editing the paste turns it off
+     until the next calculation. Gas is left out (it can't be reprocessed). The game's estimated value goes along
+     when the paste had one for every stack of that item (Reprocessing uses it only when there's no market price). */
+  const fresh = { cargo: false, scan: false };
+  function syncRp() {
+    $("cargoRp").disabled = !(cargo && fresh.cargo && cargo.items.some(it => !isGas(it.ore)));
+    $("scanRp").disabled = !(belt && fresh.scan);
+    $("cargoRp").title = $("cargoRp").disabled ? "Add cargo first" : "Reprocess the ore in the hold";
+    $("scanRp").title = $("scanRp").disabled ? "Calculate belt value first" : "Reprocess the ore in the belt";
+  }
+  const line = (name, qty, est) => `${name}\t${qty}` + (est > 0 ? `\t${est.toFixed(2)} ISK` : "");
+  function cargoText() {
+    return cargo.items.filter(it => !isGas(it.ore))
+      .map(it => line(it.name, it.qty, it.estQty === it.qty ? it.estIsk : 0)).join("\n");
+  }
+  function beltText() {
+    const by = new Map();      // ore name -> {units, isk}; isk null once a rock without a scanner value is seen
+    for (const r of belt.rocks) {
+      const e = by.get(r.ore.name) || { units: 0, isk: 0 };
+      e.units += r.units; e.isk = e.isk == null || r.scanIsk == null || isNaN(r.scanIsk) ? null : e.isk + r.scanIsk;
+      by.set(r.ore.name, e);
+    }
+    return [...by].map(([name, e]) => line(name, e.units, e.isk || 0)).join("\n");
+  }
+  for (const [btn, box, key, text] of [["cargoRp", "cargo", "cargo", cargoText], ["scanRp", "scan", "scan", beltText]]) {
+    $(btn).addEventListener("click", e => {
+      e.preventDefault(); e.stopPropagation();          // the button sits in the section's title: don't fold it
+      if (!$(btn).disabled) sendTo("reprocessing", { text: text(), from: key === "cargo" ? "cargo hold" : "scanner results" });
+    });
+    $(box).addEventListener("input", () => { fresh[key] = false; syncRp(); });
+  }
+  // These run after the handlers above: a paste that didn't parse shows an error and leaves the button off.
+  $("calcCargo").addEventListener("click", () => { fresh.cargo = !!cargo && cargoErr.hidden; syncRp(); });
+  $("calcBelt").addEventListener("click", () => { fresh.scan = !!belt && beltErr.hidden; syncRp(); });
+  $("clearCargo").addEventListener("click", () => { fresh.cargo = false; syncRp(); });
+  $("clearBelt").addEventListener("click", () => { fresh.scan = false; syncRp(); });
+
   /* ---------- (re)initialise from state ---------- */
   init = () => {
-    hubEl.value = S.hub; basisEl.value = S.basis;
     sessHEl.value = S.sess.h; sessMEl.value = S.sess.m; bestEl.checked = !!S.sess.best;
     sessEndEl.value = S.sess.end || ""; sharePctEl.value = S.sess.pct;
     syncUnit(); applyMode(); applyFleetTab();
-    renderMiners(); renderHuffers(); renderStatus(); renderTables();
+    renderMiners(); renderHuffers(); renderTables();
+    fresh.cargo = fresh.scan = false; syncRp();
   };
-  syncNow = serverSync;
   init();
-  serverSync();
+  P.want(allIds());
 }
 
 /** Called by Settings → reset after the module's saved data was removed. */
 export function reset() {
   if (!init) return;
-  loadState(); noServer = false; belt = null; cargo = null; $("priceErr").hidden = true; retryStep = 0;
+  loadState(); belt = null; cargo = null;
   $("scan").value = ""; $("cargo").value = "";
-  init(); syncNow();
+  init();
 }
 
 /** For the update bar: what would be lost by reloading the page now. */

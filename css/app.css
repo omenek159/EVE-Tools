@@ -37,9 +37,15 @@ body{background:var(--glow),var(--bg);background-attachment:fixed;color:var(--fg
 .logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit}
 .logo-mark{width:40px;height:40px;flex:none;color:var(--hdr-fg)}
 .logo-mark .acc{fill:var(--accent)}
-.logo-name{font-family:var(--f-display);font-size:22px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.logo-text{display:flex;flex-direction:column;line-height:1}
+.logo-name{font-family:var(--f-display);font-size:22px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;line-height:1.05}
 .logo-name span{color:var(--accent)}
-.logo-by{margin-left:3px;font-family:var(--f-body);font-size:10.5px;font-weight:500;letter-spacing:.02em;text-transform:none;color:var(--hdr-muted)}
+.logo-by{margin-top:2px;font-family:var(--f-body);font-size:10.5px;font-weight:500;letter-spacing:.02em;text-transform:none;color:var(--hdr-muted)}
+.price-status{display:inline-flex;align-items:center;gap:7px;background:none;border:none;color:var(--hdr-muted);font:500 12.5px var(--f-body);cursor:pointer;padding:6px 8px;border-radius:10px;margin-right:6px;min-width:0;white-space:nowrap}
+.price-status:hover{color:var(--hdr-fg)}
+.price-status .dot{margin-top:0}
+.price-status .ps-text{overflow:hidden;text-overflow:ellipsis}
+@media (max-width:520px){.price-status .ps-text{display:none}}
 .appbar .spacer{flex:1}
 .icon-btn{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--hdr-line);color:var(--hdr-fg);border-radius:10px;padding:7px 10px;cursor:pointer;font:500 13px var(--f-body)}
 .icon-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -253,3 +259,27 @@ p.note{font-size:13px;color:var(--muted);margin:0}
 .drawer .danger{color:var(--bad);border-color:var(--line)}
 .drawer .danger:hover{border-color:var(--bad)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- reprocessing ---------- */
+.skill-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 14px}
+.skill-grid .sk-h{grid-column:1/-1;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:600;margin-top:6px}
+.skill-grid .sk-h:first-child{margin-top:0}
+.skill-grid .sk{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;min-width:0}
+.skill-grid .sk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.skill-grid .sk select{width:52px;padding:2px 4px;flex:none}
+.yields{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--muted)}
+.yields .yield b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--fg)}
+.yields p.note{flex-basis:100%;font-size:12px}
+h3.tbl-title{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:4px 0 -4px}
+table.data td .cls{font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin-left:4px}
+details.fold > summary .rp-btn{margin-left:auto;align-self:center;padding:4px 12px;font-size:13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex:none}
+details.fold > summary .rp-btn:disabled{opacity:.45;cursor:default;border-color:var(--line)}
+.rp-ico{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* Too narrow for the label (phones): icon only; the title / aria-label still say "Reprocess". */
+#beltPanel details.fold{container-type:inline-size}
+/* Narrow: the button stays on the title's line, the summary text moves below it. */
+@container (max-width:520px){
+  details.fold > summary .rp-btn{padding:5px 8px;order:2}
+  details.fold > summary .rp-label{display:none}
+  details.fold > summary:has(.rp-btn) .sum{order:3;flex-basis:100%;padding-left:16px}
+}
