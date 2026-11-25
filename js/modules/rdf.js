@@ -20,40 +20,43 @@ const THREATS = [   // from the lowest; `min` = Rampancy on grid needed, `pause`
 // Not yet confirmed by a cargo scan (shown as estimated): Low and Moderate threat, C1 at any threat, C6 at Critical.
 const estimated = (cls, threat) => threat.mult < 4 || cls === "C1" || (cls === "C6" && threat.id === "Critical");
 // Rampancy per ship on grid (patch notes 24.01).
-const SHIPS = [
-  ["cap", "Capital (other)", 72],
-  ["fax", "Force Auxiliary", 36],
-  ["marauder", "Marauder", 12],
-  ["blops", "Black Ops", 8],
-  ["bs", "Battleship (other)", 6],
-  ["t3c", "Strategic Cruiser", 4],
-  ["cs", "Command Ship", 3],
-  ["bc", "Battlecruiser (other)", 2],
-  ["hac", "Heavy Assault Cruiser", 2],
+const SHIPS = [   // names and values as on the EVE University wiki (Rampant Drone Fabricator)
+  ["cruiser", "Cruiser (T1/Faction)", 1],
   ["logi", "Logistics Cruiser", 2],
-  ["cruiser", "Cruiser (other)", 1],
+  ["hac", "Heavy Assault Cruiser", 2],
+  ["bc", "T1/Faction Battlecruiser", 2],
+  ["cs", "Command Ship", 3],
+  ["t3c", "Strategic Cruiser", 4],
+  ["bs", "T1/Faction Battleship", 6],
+  ["blops", "Black Ops", 8],
+  ["marauder", "Marauder", 12],
+  ["fax", "Force Auxiliary", 36],
+  ["cap", "All other capital ships", 72],
 ];
 // Nanoswarms (EVE University wiki, Rampant Drone Fabricator): two become vulnerable on these waves; destroying one
 // gives its 20% bonus and the other self-destructs; clearing the wave without destroying either gives nothing.
 const SWARM_WAVES = new Set([5, 10, 15, 25, 35, 45, 65, 85]);
+// [name, bonus, icon in img/nanoswarm/]. Icons: CCP's module/script icons as used on the EVE University wiki, picked to
+// show the bonus type; there is no heat-damage icon, so Thermal Sink uses the overheat icon tinted blue ("cool").
 const SWARMS = [
-  ["Clarifier", "Scan resolution"],
-  ["Energized", "Capacitor capacity"],
-  ["Focuser", "Turret optimal range"],
-  ["Light Squadron", "Light fighter damage"],
-  ["Masker", "Signature radius reduction"],
-  ["Overclocker", "Overheat benefits"],
-  ["Patcher", "Local armor repair amount"],
-  ["Predictive", "Tracking speed"],
-  ["Prolonging", "Missile flight time"],
-  ["Rapid Squadron", "Fighter velocity"],
-  ["Rapidity", "Ship velocity"],
-  ["Reflective", "Local shield boost amount"],
-  ["Suppressive", "Missile explosion radius reduction"],
-  ["Thermal Sink", "Heat damage reduction"],
-  ["Trans-Patch", "Remote armor repair amount"],
-  ["Trans-Reflect", "Remote shield boost amount"],
+  ["Clarifier", "Scan resolution", "scan-resolution"],
+  ["Energized", "Capacitor capacity", "capacitor"],
+  ["Focuser", "Turret optimal range", "optimal-range"],
+  ["Light Squadron", "Light fighter damage", "light-fighter"],
+  ["Masker", "Signature radius reduction", "signature"],
+  ["Overclocker", "Overheat benefits", "overheat"],
+  ["Patcher", "Local armor repair amount", "armor-repair"],
+  ["Predictive", "Tracking speed", "tracking"],
+  ["Prolonging", "Missile flight time", "missile-range"],
+  ["Rapid Squadron", "Fighter velocity", "fighter-velocity"],
+  ["Rapidity", "Ship velocity", "velocity"],
+  ["Reflective", "Local shield boost amount", "shield-boost"],
+  ["Suppressive", "Missile explosion radius reduction", "explosion-radius"],
+  ["Thermal Sink", "Heat damage reduction", "overheat cool"],
+  ["Trans-Patch", "Remote armor repair amount", "remote-armor"],
+  ["Trans-Reflect", "Remote shield boost amount", "remote-shield"],
 ];
+const ICON_DIR = new URL("../../img/nanoswarm/", import.meta.url);
 const PRICE = 200000;           // ISK per unit: the item's base price (type 91773); Jita trades around it
 const VOLUME = 0.01;            // m³ per unit
 const MIN_WAVE = 5;             // the Fabricator is invulnerable until wave 5 is cleared
@@ -77,14 +80,13 @@ const TEMPLATE = `
         <h2 id="h-rdf-wh">Wormhole</h2>
         <div class="seg full" id="cls" role="group" aria-label="Wormhole class"></div>
         <div class="tiles two" id="whData"></div>
-        <p class="note" id="estNote" hidden></p>
       </section>
 
       <section class="panel" aria-labelledby="h-rdf-swarm">
-        <h2 id="h-rdf-swarm">Nanoswarms</h2>
+        <div class="head"><h2 id="h-rdf-swarm">Nanoswarms</h2><button class="btn" id="swarmReset" type="button" title="Show every Nanoswarm normally again">Reset</button></div>
         <p class="note">Two Nanoswarms become vulnerable on waves <b class="num">${[...SWARM_WAVES].join(", ")}</b>. Destroy one for its 20% bonus; the other self-destructs. Clear the wave without destroying either and you get no bonus.</p>
-        <table class="data swarms"><thead><tr><th>Nanoswarm</th><th>20% bonus</th></tr></thead>
-          <tbody>${SWARMS.map(([n, e]) => `<tr><td>${n}</td><td>${e}</td></tr>`).join("")}</tbody></table>
+        <table class="data swarms"><thead><tr><th colspan="2">Nanoswarm</th><th>20% bonus</th></tr></thead>
+          <tbody id="swarmRows"></tbody></table>
       </section>
     </aside>
 
@@ -116,12 +118,13 @@ const TEMPLATE = `
 
 /* ---------- state ---------- */
 let S, $;
-function defaults() { return { cls: "C3", ships: {}, wave: 20, step: 5, open: true }; }
+function defaults() { return { cls: "C3", ships: {}, wave: 20, step: 5, open: true, dim: [] }; }
 const save = () => store.setJSON(KEY, S);
 function load() {
   const d = defaults(), s = Object.assign(d, store.getJSON(KEY, {}));
   if (!CLASS_UNIT[s.cls]) s.cls = d.cls;
   if (!s.ships || typeof s.ships !== "object") s.ships = {};
+  if (!Array.isArray(s.dim)) s.dim = [];
   s.wave = clampWave(s.wave);
   if (![1, 5].includes(s.step)) s.step = 5;
   return s;
@@ -143,13 +146,10 @@ function render() {
 
   $("#cls").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.cls === S.cls));
   $("#whData").innerHTML = `
-    <div class="tile"><span>Rampancy on grid</span><b>${nf0.format(r)}</b><small>${next ? `${next.id} at ${next.min}` : "highest level"}</small></div>
+    <div class="tile"><span>Rampancy on grid</span><b>${nf0.format(r)}</b>${next ? `<small>${next.id} at ${next.min}</small>` : ""}</div>
     <div class="tile"><span>Severity</span><b><span class="pill ${pillCls}">${t.id}</span></b>${est ? `<small class="warnsum">estimated</small>` : "<small>measured</small>"}</div>
     <div class="tile"><span>Data after wave 1</span><b>${nf0.format(mm)}</b></div>
     <div class="tile"><span>Pause between waves</span><b>${t.pause} s</b></div>`;
-  const en = $("#estNote");
-  en.hidden = !est;
-  en.textContent = est ? `${S.cls} at ${t.id} threat hasn't been confirmed by a cargo scan yet: the numbers follow the measured pattern. A scan after wave 1 should show ${nf0.format(mm)} data.` : "";
 
   $("#sevSum").innerHTML = `Rampancy <b>${nf0.format(r)}</b> · ${t.id} · ${nf0.format(shipsOnGrid())} ship${shipsOnGrid() === 1 ? "" : "s"}`;
   $("#sevLegend").innerHTML = THREATS.map((x, i) =>
@@ -158,6 +158,22 @@ function render() {
 
   renderTable();
   renderTiles();
+}
+
+// Nanoswarm list; a click dims a row (e.g. the ones you don't want) and a second click brings it back.
+function renderSwarms() {
+  const dim = new Set(S.dim);
+  $("#swarmRows").innerHTML = SWARMS.map(([n, e, ico]) => {
+    const [file, mod] = ico.split(" ");
+    return `<tr data-swarm="${esc(n)}" tabindex="0" aria-pressed="${dim.has(n)}"${dim.has(n) ? ` class="dim"` : ""}>
+      <td class="ico"><img src="${ICON_DIR}${file}.png" alt="" width="24" height="24"${mod ? ` class="${mod}"` : ""}></td><td>${esc(n)}</td><td>${esc(e)}</td></tr>`;
+  }).join("");
+  $("#swarmReset").disabled = !dim.size;
+}
+function toggleSwarm(n) {
+  S.dim = S.dim.includes(n) ? S.dim.filter(x => x !== n) : [...S.dim, n];
+  save(); renderSwarms();
+  $(`#swarmRows tr[data-swarm="${CSS.escape(n)}"]`)?.focus();
 }
 
 // The payout tiles for the selected wave.
@@ -218,6 +234,7 @@ async function copy() {
 function fill() {
   $("#sevFold").open = !!S.open;
   $("#ships").querySelectorAll("input[data-ship]").forEach(i => { i.value = count(i.dataset.ship) || ""; });
+  renderSwarms();
   render();
 }
 
@@ -258,6 +275,14 @@ export function mount(el) {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectWave(+tr.dataset.wave); }
   });
   $("#copyRow").addEventListener("click", copy);
+  $("#swarmRows").addEventListener("click", e => {
+    const tr = e.target.closest("tr[data-swarm]"); if (tr) toggleSwarm(tr.dataset.swarm);
+  });
+  $("#swarmRows").addEventListener("keydown", e => {
+    const tr = e.target.closest("tr[data-swarm]"); if (!tr) return;
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSwarm(tr.dataset.swarm); }
+  });
+  $("#swarmReset").addEventListener("click", () => { S.dim = []; save(); renderSwarms(); });
 
   fill();
 }
