@@ -2,9 +2,9 @@
 // The Fabricator holds m × n(n+1)/2 data after wave n is cleared (wave n adds m × n); m = class unit U × threat
 // multiplier T. Threat comes from the Rampancy of the ships on grid. Mechanics: patch notes 23.02 and 24.01
 // (2026-09-22 data increase); U and T from in-game cargo scans (corp sheet "Rampant Drone Science"), see below.
-import { nf0, isk, esc, store } from "../shared.js";
+import { nf0, isk, esc, store } from "../shared.js";   // store: only to clear what an earlier version saved
 
-const KEY = "eveTools.rdf.v1";
+const OLD_KEY = "eveTools.rdf.v1";   // earlier versions saved settings here; nothing is saved now
 
 /* ---------- game constants (edit these two maps after a patch) ---------- */
 // Class unit U = data after wave 1 at Low threat. C2–C6 measured (C1 shares C2/C3's loot tier, not measured).
@@ -17,8 +17,7 @@ const THREATS = [   // from the lowest; `min` = Rampancy on grid needed, `pause`
   { id: "Severe", min: 36, mult: 4, pause: 12 },
   { id: "Critical", min: 72, mult: 8, pause: 6 },
 ];
-// Not yet confirmed by a cargo scan (shown as estimated): Low and Moderate threat, C1 at any threat, C6 at Critical.
-const estimated = (cls, threat) => threat.mult < 4 || cls === "C1" || (cls === "C6" && threat.id === "Critical");
+// Not yet confirmed by a cargo scan: Low and Moderate threat, C1 at any threat, C6 at Critical.
 // Rampancy per ship on grid (patch notes 24.01).
 const SHIPS = [   // names and values as on the EVE University wiki (Rampant Drone Fabricator)
   ["cruiser", "Cruiser (T1/Faction)", 1],
@@ -118,17 +117,8 @@ const TEMPLATE = `
 
 /* ---------- state ---------- */
 let S, $;
+// Nothing is saved in the browser: every visit starts from these.
 function defaults() { return { cls: "C3", ships: {}, wave: 20, step: 5, open: true, dim: [] }; }
-const save = () => store.setJSON(KEY, S);
-function load() {
-  const d = defaults(), s = Object.assign(d, store.getJSON(KEY, {}));
-  if (!CLASS_UNIT[s.cls]) s.cls = d.cls;
-  if (!s.ships || typeof s.ships !== "object") s.ships = {};
-  if (!Array.isArray(s.dim)) s.dim = [];
-  s.wave = clampWave(s.wave);
-  if (![1, 5].includes(s.step)) s.step = 5;
-  return s;
-}
 const clampWave = v => Math.min(MAX_WAVE, Math.max(MIN_WAVE, Math.round(+v) || MIN_WAVE));
 const count = id => Math.max(0, Math.floor(+S.ships[id] || 0));
 const shipsOnGrid = () => SHIPS.reduce((a, [id]) => a + count(id), 0);
@@ -140,14 +130,14 @@ const m = () => baseData(S.cls, threatOf(rampancy()));
 
 /* ---------- render ---------- */
 function render() {
-  const r = rampancy(), t = threatOf(r), mm = baseData(S.cls, t), est = estimated(S.cls, t);
+  const r = rampancy(), t = threatOf(r), mm = baseData(S.cls, t);
   const next = THREATS[THREATS.indexOf(t) + 1];
   const pillCls = { Low: "", Moderate: "ok", Severe: "warn", Critical: "bad" }[t.id];
 
   $("#cls").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.cls === S.cls));
   $("#whData").innerHTML = `
     <div class="tile"><span>Rampancy on grid</span><b>${nf0.format(r)}</b>${next ? `<small>${next.id} at ${next.min}</small>` : ""}</div>
-    <div class="tile"><span>Severity</span><b><span class="pill ${pillCls}">${t.id}</span></b>${est ? `<small class="warnsum">estimated</small>` : "<small>measured</small>"}</div>
+    <div class="tile"><span>Severity</span><b><span class="pill ${pillCls}">${t.id}</span></b></div>
     <div class="tile"><span>Data after wave 1</span><b>${nf0.format(mm)}</b></div>
     <div class="tile"><span>Pause between waves</span><b>${t.pause} s</b></div>`;
 
@@ -172,7 +162,7 @@ function renderSwarms() {
 }
 function toggleSwarm(n) {
   S.dim = S.dim.includes(n) ? S.dim.filter(x => x !== n) : [...S.dim, n];
-  save(); renderSwarms();
+  renderSwarms();
   $(`#swarmRows tr[data-swarm="${CSS.escape(n)}"]`)?.focus();
 }
 
@@ -206,7 +196,7 @@ function renderTable() {
 
 // Select a wave from the table: highlight its row and update the tiles above (the table itself stays as it is).
 function selectWave(w) {
-  S.wave = clampWave(w); save();
+  S.wave = clampWave(w);
   $("#waveTable").querySelectorAll("tr[data-wave]").forEach(tr => {
     const on = +tr.dataset.wave === S.wave;
     tr.classList.toggle("cur", on); tr.setAttribute("aria-selected", on);
@@ -242,7 +232,8 @@ function fill() {
 export function mount(el) {
   el.innerHTML = TEMPLATE;
   $ = sel => el.querySelector(sel);
-  S = load();
+  S = defaults();
+  store.remove(OLD_KEY);
 
   $("#cls").innerHTML = Object.keys(CLASS_UNIT).map(c => `<button type="button" data-cls="${c}">${c}</button>`).join("");
   $("#ships").innerHTML = SHIPS.map(([id, name, r]) =>
@@ -251,20 +242,19 @@ export function mount(el) {
 
   $("#cls").addEventListener("click", e => {
     const b = e.target.closest("[data-cls]"); if (!b) return;
-    S.cls = b.dataset.cls; save(); render();
+    S.cls = b.dataset.cls; render();
   });
   $("#step").addEventListener("click", e => {
     const b = e.target.closest("[data-step]"); if (!b) return;
-    S.step = +b.dataset.step; save(); render();
+    S.step = +b.dataset.step; render();
   });
   $("#ships").addEventListener("input", e => {
     const i = e.target.closest("[data-ship]"); if (!i) return;
     const v = Math.max(0, Math.floor(+i.value || 0));
     if (v) S.ships[i.dataset.ship] = v; else delete S.ships[i.dataset.ship];
-    save(); render();
+    render();
   });
-  $("#clearShips").addEventListener("click", () => { S.ships = {}; save(); fill(); });
-  $("#sevFold").addEventListener("toggle", () => { S.open = $("#sevFold").open; save(); });
+  $("#clearShips").addEventListener("click", () => { S.ships = {}; fill(); });
 
   // Click a row (or Enter / Space on it) to select that wave.
   $("#waveTable").addEventListener("click", e => {
@@ -282,9 +272,11 @@ export function mount(el) {
     const tr = e.target.closest("tr[data-swarm]"); if (!tr) return;
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSwarm(tr.dataset.swarm); }
   });
-  $("#swarmReset").addEventListener("click", () => { S.dim = []; save(); renderSwarms(); });
+  $("#swarmReset").addEventListener("click", () => { S.dim = []; renderSwarms(); });
 
   fill();
 }
+
+export const unsavedNote = () => shipsOnGrid() ? "the RDF fleet" : null;   // the rest is easy to set again
 
 export function reset() { S = defaults(); if ($) fill(); }

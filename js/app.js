@@ -12,8 +12,7 @@ const MODULES = [
   { id: "reprocessing", label: "Reprocessing", file: "./modules/reprocessing.js",
     resetLabel: "Reset reprocessing settings", keys: ["eveTools.reprocessing.v1"] },
   { id: "incursions", label: "Incursions", file: "./modules/incursions.js", keys: [] },   // saves nothing
-  { id: "rdf", label: "RDF", tag: "alpha", file: "./modules/rdf.js",
-    resetLabel: "Reset RDF calculator", keys: ["eveTools.rdf.v1"] },
+  { id: "rdf", label: "RDF", tag: "alpha", file: "./modules/rdf.js", keys: [] },   // saves nothing
 ];
 const LIVE = MODULES.filter(m => !m.soon);
 
