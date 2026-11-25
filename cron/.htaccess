@@ -1,0 +1,7 @@
+# Cron jobs run from the command line only; nothing here is served to browsers.
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Deny from all
+</IfModule>

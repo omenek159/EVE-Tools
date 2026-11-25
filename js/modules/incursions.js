@@ -118,9 +118,7 @@ const TEMPLATE = `
     </div>
   </div>
   <footer class="note">
-    ISK/h = (total ISK − first site's payout) ÷ time from first to last payout, since the first payout marks the start of the clock.
-    Payouts with the same timestamp count as alts paid for the same site. Site type, LP and pilots on grid are matched from the exact ISK amount,
-    using a reduction of 1 − 0.0725·n − 0.0025·n² for n pilots over the normal grid. CONCORD LP is only paid if the mothership dies.
+    Calculation logic ported from the TLA waitlist (github.com/luna-duclos/tla-waitlist, MIT licence).
   </footer>`;
 
 let $, update;
