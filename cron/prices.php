@@ -14,9 +14,11 @@
  *   <site>/cache/adjusted_prices.json   {"fetchedAt","data":{typeID: adjusted price}} from ESI, at most hourly
  *                                       (CCP's reference price, used e.g. for reprocessing tax; changes about daily)
  *
- * Items priced: every ore, compressed ore and gas in data/ores.json, plus every material anything reprocesses
- * into (minerals, ice products, salvage, components, ...: "materials" in cache/sde/reprocessing.json, once the
- * SDE job has run).
+ * Items priced: every ore, compressed ore and gas in data/ores.json; from cache/sde/reprocessing.json (once the
+ * SDE job has run) every ore, moon ore and ice and every material anything reprocesses into (minerals, ice
+ * products, salvage, components, ...); and every other item (modules, ships, ...) a page has asked prices.php for in the last REQUEST_TTL
+ * (cache/price_requests.json, {typeID: last asked}, written by prices.php; older entries are dropped here).
+ * Fuzzwork is asked for at most CHUNK items per request.
  * "fetchedAt" is when these prices were first seen: a fetch that returns the same prices keeps the old time.
  * Right after a new orderset appears, Fuzzwork sometimes still serves the old prices; a market whose prices
  * came back unchanged is fetched again on the next runs, until they change or the orderset is RECHECK_SAME old.
@@ -33,6 +35,8 @@ const RECHECK_SAME  = 300;     // seconds after a new orderset during which unch
 const FALLBACK_TTL  = 1800;    // orderset number unavailable: fetch again when prices are this old
 const ADJUSTED_TTL  = 3600;    // ESI adjusted prices: fetch again after this long (ESI caches them for an hour)
 const ADJUSTED_RETRY = 900;    // ... or after this long when the last try failed
+const REQUEST_TTL   = 30 * 86400;  // items asked for on demand stay priced this long after the last time they were asked for
+const CHUNK         = 500;     // items per Fuzzwork request
 
 $site  = siteFolder('prices');
 $force = flag('force');
@@ -59,9 +63,25 @@ function priceTypes(string $site): array {
     foreach ($ores['fam'] as $fam) foreach ($fam as $it) { $ids[(int)$it[1]] = true; if (!empty($it[3])) $ids[(int)$it[3]] = true; }
     $repro = readJson("$site/cache/sde/reprocessing.json");
     foreach (array_keys($repro['materials'] ?? []) as $id) $ids[(int)$id] = true;
+    foreach ($repro['items'] ?? [] as $id => $it) if (($it['class'] ?? '') !== 'scrap') $ids[(int)$id] = true;   // every ore, moon ore, ice
+    foreach (requestedTypes("$site/cache/price_requests.json") as $id) $ids[$id] = true;
     $ids = array_keys($ids);
     sort($ids);
     return $ids;
+}
+
+// Items pages asked for on demand (prices.php adds them), minus those nobody asked for in REQUEST_TTL.
+function requestedTypes(string $file): array {
+    if (!is_file($file)) return [];
+    $fh = fopen($file, 'c+');
+    if (!$fh) return [];
+    flock($fh, LOCK_EX);
+    $all = json_decode((string)stream_get_contents($fh), true);
+    $all = is_array($all) ? $all : [];
+    $keep = array_filter($all, function ($t) { return time() - (int)$t < REQUEST_TTL; });
+    if (count($keep) !== count($all)) { ftruncate($fh, 0); rewind($fh); fwrite($fh, json_encode($keep)); }
+    flock($fh, LOCK_UN); fclose($fh);
+    return array_map('intval', array_keys($keep));
 }
 
 $markets = readJson("$site/data/markets.json");
@@ -90,11 +110,17 @@ try {
 
         [$kind, $id] = explode(':', $market);
         try {
-            $data = httpJson(FUZZWORK . '?' . $kind . '=' . $id . '&types=' . $typeKey, 30);
+            $data = [];
+            foreach (array_chunk($types, CHUNK) as $part)
+                $data += httpJson(FUZZWORK . '?' . $kind . '=' . $id . '&types=' . implode(',', $part), 30);
             if (!$data) throw new RuntimeException('no prices in the reply');
         } catch (Throwable $e) { $errors[] = "$market: " . $e->getMessage(); continue; }
 
         $data = trimPrices($data);
+        // prices.php may add items to this file while we fetched; hold its lock while writing (see prices.php).
+        $mlock = fopen("$file.lock", 'c');
+        if ($mlock) flock($mlock, LOCK_EX);
+        $c = readJson($file);
         $same = $c && ($c['types'] ?? '') === $typeKey && ($c['data'] ?? null) == $data;
         // Unchanged prices soon after a new orderset are probably the old batch still being served: leave the
         // saved orderset as it was, so the next run fetches again.
@@ -106,6 +132,7 @@ try {
             'types'     => $typeKey,
             'data'      => $data,
         ]);
+        if ($mlock) { flock($mlock, LOCK_UN); fclose($mlock); }
         if ($same) sayV("$market: prices unchanged (orderset $os)");
         else say("$market: new prices, orderset $os");
     }

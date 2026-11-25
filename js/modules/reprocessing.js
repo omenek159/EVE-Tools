@@ -155,11 +155,12 @@ function compute() {
       out.push([mid, q]);
       mats.set(mid, (mats.get(mid) || 0) + q);
     }
-    // Input value: the game's estimate from the paste (for the processed part only), else the market price.
+    // Input value (processed part only): the market price (market and basis from Settings); the game's estimate
+    // from the paste only when the market has no price for the item.
     const used = batches * it.portion;
     let iv = null, ivSrc = null;
-    if (e.estQty === e.qty && e.est > 0) { iv = e.est * used / e.qty; ivSrc = "est"; }
-    else if (price(e.id) != null) { iv = price(e.id) * used; ivSrc = "market"; }
+    if (price(e.id) != null) { iv = price(e.id) * used; ivSrc = "market"; }
+    else if (e.estQty === e.qty && e.est > 0) { iv = e.est * used / e.qty; ivSrc = "est"; }
     if (iv == null && used) inMissing++;
     inVal += iv || 0; outVal += val; tax += t;
     rows.push({ e, y, batches, left, used, out, val, tax: t, iv, ivSrc });
@@ -253,6 +254,7 @@ export async function mount(el) {
   $("calc").addEventListener("click", () => {
     pasteText = $("paste").value;
     items = parsePaste(pasteText);
+    P.want(items.list.map(e => e.id));     // the server fetches prices it has never had (modules, ships, ...)
     const err = $("pasteErr");
     err.hidden = !!items.list.length;
     err.textContent = items.list.length ? "" : pasteText.trim() ? "Nothing in the paste can be reprocessed." : "Paste items first.";
@@ -269,7 +271,7 @@ export async function mount(el) {
     if (!items) return;
     const c = compute(), diff = c.net - c.inVal;
     const tile = (label, v, small = "", lead = false) => `<div class="tile${lead ? " lead" : ""}"><span>${label}</span><b>${v}</b>${small ? `<small>${small}</small>` : ""}</div>`;
-    $("tiles").innerHTML = tile("Items value", isk(c.inVal), "estimated, processed part")
+    $("tiles").innerHTML = tile("Items value", isk(c.inVal), "market, processed part")
       + tile("Materials value", isk(c.outVal), esc(`${P.hubName()}, ${P.basisName().toLowerCase()}`))
       + tile("Tax", isk(c.tax), `${nf2.format(taxRate() * 100)}% of adjusted value`)
       + tile(diff >= 0 ? "Reprocessing gains" : "Reprocessing loses", isk(Math.abs(diff)), `materials − tax − items value`, true);
@@ -280,7 +282,7 @@ export async function mount(el) {
     if (!P.status().at) w.push(`No market prices loaded yet, so values show as 0.`);
     if (taxRate() && !adjustedAt) w.push(`No adjusted prices from the server yet, so the tax can't be worked out.`);
     else if (c.adjMissing.size) w.push(`${c.adjMissing.size} material${c.adjMissing.size > 1 ? "s have" : " has"} no adjusted price, so the tax is too low.`);
-    if (c.inMissing) w.push(`${c.inMissing} item${c.inMissing > 1 ? "s have" : " has"} no estimated value in the paste and no market price; left out of the items value.`);
+    if (c.inMissing) w.push(`${c.inMissing} item${c.inMissing > 1 ? "s have" : " has"} no market price and no estimated value in the paste; left out of the items value.`);
     if (c.rows.some(r => r.left)) w.push(`Some items don't fill a whole batch; the leftover stays unprocessed (see Left).`);
     $("warns").innerHTML = w.map(t => `<p class="warn">${t}</p>`).join("");
 
@@ -295,7 +297,7 @@ export async function mount(el) {
         const net = r.val - r.tax, better = r.iv == null || !r.used ? "" : net >= r.iv
           ? `<span class="pill ok">reprocess</span>` : `<span class="pill bad">sell</span>`;
         return `<tr data-id="${r.e.id}"><td>${esc(r.e.it.name)} <span class="muted cls">${CLASSES[r.e.it.class]}</span></td><td>${nf0.format(r.e.qty)}</td><td>${r.left ? nf0.format(r.left) : ""}</td>`
-          + `<td>${nf2.format(r.y * 100)}%</td><td>${r.iv == null ? "—" : isk(r.iv)}${r.ivSrc === "market" ? ' <span class="mkt" title="Market price: no estimated value in the paste">market</span>' : ""}</td>`
+          + `<td>${nf2.format(r.y * 100)}%</td><td>${r.iv == null ? "—" : isk(r.iv)}${r.ivSrc === "est" ? ' <span class="mkt" title="No market price: the game\'s estimated price from the paste">est.</span>' : ""}</td>`
           + `<td><span class="val">${isk(net)}</span></td><td>${better}</td></tr>`;
       }).join("") + `</tbody>`;
     $("itemTable").querySelectorAll("tr[data-id] .val").forEach(v => {
