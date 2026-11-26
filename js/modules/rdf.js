@@ -20,7 +20,8 @@ const THREATS = [   // from the lowest; `min` = Rampancy on grid needed, `pause`
   { id: "Severe", min: 36, mult: 4, pause: 12 },
   { id: "Critical", min: 72, mult: 8, pause: 6 },
 ];
-// Not yet confirmed by a cargo scan: Low and Moderate threat, C1 at any threat, C6 at Critical.
+// Not yet confirmed by a cargo scan: Low and Moderate threat, C1 at any threat, C6 at Critical. Moderate is partly
+// confirmed: a pre-patch C2 Moderate run (wave 63, 12,096 data = 6 × 2,016) × 4/3 (the +33% for C1–C3) gives 8, as here.
 // Rampancy per ship on grid (patch notes 24.01).
 const SHIPS = [   // names and values as on the EVE University wiki (Rampant Drone Fabricator)
   ["cruiser", "Cruiser (T1/Faction)", 1],
@@ -70,7 +71,8 @@ export const threatOf = r => THREATS.reduce((t, x) => r >= x.min ? x : t, THREAT
 export const baseData = (cls, threat) => CLASS_UNIT[cls] * threat.mult;          // m
 // Must match in-game readings: C3 Critical waves 1/2/3/7 = 32/96/192/896, C4 Critical 8 = 1,440, C5 Critical 7/8 =
 // 1,344/1,728, C4 Severe 6 = 420, C6 Severe 10 = 1,320 (cargo scans); C5 Critical 25 = 15,600 and 31 = 23,808 (corp
-// runs of 2026-11-20, Janice appraisals vBtua5 and fE3IJ6: the Fabricator's whole loot).
+// runs of 2026-11-20, Janice appraisals vBtua5 and fE3IJ6: the Fabricator's whole loot). Before the September patch:
+// C2 Moderate 63 = 12,096 (m 6; × 4/3 = 8 now, so 16,128).
 export const totalData = (m, n) => m * n * (n + 1) / 2;
 export const waveGain = (m, n) => m * n;
 
@@ -137,7 +139,8 @@ const TEMPLATE = `
     <h2 id="h-rdf-notes">Notes</h2>
     <ul>
       <li><b>Confirmed:</b> Fabricator data at Severe and Critical threat.</li>
-      <li><b>Not confirmed yet:</b> Low and Moderate threat. They follow the same pattern, but haven't been checked in game.</li>
+      <li><b>Partially confirmed:</b> Moderate threat. An older run, recalculated for the September data increase, matches; it hasn't been checked in game since.</li>
+      <li><b>Not confirmed yet:</b> Low threat. It follows the same pattern, but hasn't been checked in game.</li>
       <li><b>Threat level:</b> the calculator uses one threat level for the whole run. It doesn't follow ships joining or leaving the grid.</li>
       <li><b>Prices:</b> Fabricator data is valued at a fixed 200,000 ISK. Pasted drones use market prices.</li>
       <li><b>Payout per pilot:</b> one pilot per ship on grid, shared equally.</li>
