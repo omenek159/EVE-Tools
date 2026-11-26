@@ -76,7 +76,8 @@ export const waveGain = (m, n) => m * n;
 
 const TEMPLATE = `
   <div class="head">
-    <h1>Rampant Drone Fabricator</h1>
+    <div class="title-row"><h1>Rampant Drone Fabricator</h1><span class="tag">alpha</span>
+      <button class="btn-link" id="toNotes" type="button">Notes</button></div>
     <span class="sub">Rampancy Data Dump collected by the wave you stop at, and what it's worth</span>
   </div>
   <div class="layout">
@@ -131,7 +132,18 @@ const TEMPLATE = `
         <div class="tablewrap"><table class="data" id="waveTable"></table></div>
       </section>
     </div>
-  </div>`;
+  </div>
+  <footer class="note rdf-notes" id="rdfNotes" tabindex="-1" aria-labelledby="h-rdf-notes">
+    <h2 id="h-rdf-notes">Notes</h2>
+    <ul>
+      <li><b>Confirmed:</b> Fabricator data at Severe and Critical threat.</li>
+      <li><b>Not confirmed yet:</b> Low and Moderate threat. They follow the same pattern, but haven't been checked in game.</li>
+      <li><b>Threat level:</b> the calculator uses one threat level for the whole run. It doesn't follow ships joining or leaving the grid.</li>
+      <li><b>Prices:</b> Fabricator data is valued at a fixed 200,000 ISK. Pasted drones use market prices.</li>
+      <li><b>Payout per pilot:</b> one pilot per ship on grid, shared equally.</li>
+    </ul>
+    <p class="credit">Calculations based on RDF spreadsheet by <b>BaneOfUtric</b></p>
+  </footer>`;
 
 /* ---------- state ---------- */
 let S, $, DRONES = new Map(), loot = [], ignored = 0;   // DRONES: lower-case name -> {id, name, vol}; loot: pasted drones
@@ -334,6 +346,12 @@ export async function mount(el) {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectWave(+tr.dataset.wave); }
   });
   $("#copyRow").addEventListener("click", copy);
+  // Not a #link: the URL hash picks the tool, so scroll instead.
+  $("#toNotes").addEventListener("click", () => {
+    const f = $("#rdfNotes");
+    f.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    f.focus({ preventScroll: true });
+  });
   $("#lootPaste").addEventListener("input", onPaste);
   $("#lootClear").addEventListener("click", () => { $("#lootPaste").value = ""; onPaste(); $("#lootPaste").focus(); });
   $("#swarmRows").addEventListener("click", e => {

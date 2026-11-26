@@ -155,6 +155,10 @@ td input.inl{width:72px;padding:4px 6px}
 #tip .cmp{margin-top:8px;font-weight:600}
 .up{color:var(--good)} .down{color:var(--bad)}
 footer.note{margin-top:18px;font-size:12px;color:var(--muted);max-width:80ch}
+/* Credits (a licence or a source): uppercase heading font, the credited name in the accent colour. */
+.credit{margin:0;font-family:var(--f-display);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.credit b{color:var(--accent);font-weight:700}
+.credit .url{text-transform:none;letter-spacing:.02em}
 
 
 /* incursions */
@@ -244,6 +248,16 @@ p.warn{font-size:13px;color:var(--warn);margin:0}
 p.note{font-size:13px;color:var(--muted);margin:0}
 
 /* ---------- rdf ---------- */
+.title-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.title-row .tag{font-family:var(--f-body);font-size:11px;letter-spacing:.04em;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:0 5px;align-self:center}
+.title-row .btn-link{font-size:14px}
+footer.rdf-notes{max-width:none;border-top:1px solid var(--line);padding-top:14px;margin-top:24px;display:flex;flex-direction:column;gap:6px;scroll-margin-top:58px}
+footer.rdf-notes:focus{outline:none}
+footer.rdf-notes h2{font-size:15px}
+footer.rdf-notes p{margin:0}
+footer.rdf-notes ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:2px}
+footer.rdf-notes li b{color:var(--fg);font-weight:600}
+footer.rdf-notes .credit{margin-top:8px}
 .ship-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px 16px}
 .ship{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;min-width:0}
 .ship > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
