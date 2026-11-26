@@ -13,7 +13,8 @@
  * may be out of date.
  *
  * Items asked for that the saved copy has never had (e.g. a module pasted into Reprocessing) are fetched from
- * Fuzzwork here, once, for this market only: only reprocessable items and materials from the SDE extract,
+ * Fuzzwork here, once, for this market only: only reprocessable items and materials from the SDE extract
+ * (plus the hybrid drones in data/rdf.json),
  * at most NEW_MAX per request, one fetch per market at a time. They are added to the saved copy and to
  * cache/price_requests.json ({typeID: last asked}), so from then on the price job refreshes them with
  * everything else (every market), until nobody has asked for them for 30 days. If Fuzzwork doesn't answer,
@@ -141,6 +142,7 @@ $touch = array_values(array_filter($types, function ($id) use ($asked) { return 
 if ($missing) {
     $sde = readJson(SDE_FILE) ?? [];
     $known = ($sde['items'] ?? []) + ($sde['materials'] ?? []);
+    foreach ((readJson(__DIR__ . '/data/rdf.json') ?? [])['drones'] ?? [] as $d) $known[(int)$d[0]] = true;   // RDF hybrid drones
     $missing = array_slice(array_values(array_filter($missing, function ($id) use ($known) { return isset($known[$id]); })), 0, NEW_MAX);
 }
 if ($missing) {
