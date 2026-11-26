@@ -5,13 +5,14 @@ import * as P from "./prices.js";
 
 /* ---------- module registry ----------
    To add a tool: create js/modules/<name>.js exporting mount(el) and optionally reset(),
-   then add one entry here. `keys` are the browser-storage keys the module uses (for Settings → reset). */
+   then add one entry here. `tag` (optional) is a small label next to the name in the menu, e.g. "alpha". `keys` are the browser-storage keys the module uses (for Settings → reset). */
 const MODULES = [
   { id: "ore-prices", label: "Ore prices", file: "./modules/ore.js",
     resetLabel: "Reset ore calculator", keys: ["oreProfitCalc.v1"] },
   { id: "reprocessing", label: "Reprocessing", file: "./modules/reprocessing.js",
     resetLabel: "Reset reprocessing settings", keys: ["eveTools.reprocessing.v1"] },
   { id: "incursions", label: "Incursions", file: "./modules/incursions.js", keys: [] },   // saves nothing
+  { id: "rdf", label: "RDF", tag: "alpha", file: "./modules/rdf.js", keys: [] },   // saves nothing
 ];
 const LIVE = MODULES.filter(m => !m.soon);
 
@@ -31,7 +32,7 @@ const menu = document.getElementById("menuItems");
 const views = document.getElementById("views");
 menu.innerHTML = MODULES.map(m => m.soon
   ? `<a class="soon" aria-disabled="true">${m.label}<span class="tag">soon</span></a>`
-  : `<a href="#${m.id}" data-view="${m.id}">${m.label}</a>`).join("");
+  : `<a href="#${m.id}" data-view="${m.id}">${m.label}${m.tag ? `<span class="tag">${m.tag}</span>` : ""}</a>`).join("");
 
 /* ---------- lazy loading ---------- */
 const loaded = new Map(); // id -> Promise<module>
@@ -125,7 +126,7 @@ renderPrices();
    Re-read js/version.js from the server, bypassing the browser cache. When its APP_VERSION is newer than the one
    this page loaded, offer a reload. Versions are "MAJOR.MINOR" (a plain "3" counts as "3.0"). */
 const VERSION_URL = new URL("./version.js", import.meta.url);
-const SHELL_FILES = ["../index.html", "../css/app.css", "./app.js", "./shared.js", "./prices.js", "./version.js", "../data/ores.json", "../data/markets.json"];
+const SHELL_FILES = ["../index.html", "../css/app.css", "./app.js", "./shared.js", "./prices.js", "./version.js", "../data/ores.json", "../data/markets.json", "../data/rdf.json"];
 let lastCheck = 0, checking = false, noServer = false, dismissed = "";
 const VERSION_RE = /APP_VERSION\s*=\s*["']?(\d+(?:\.\d+)?)/;
 // Compare "MAJOR.MINOR" versions part by part (so 3.10 is newer than 3.9): >0 when a is newer than b.

@@ -16,7 +16,7 @@
  *
  * Items priced: every ore, compressed ore and gas in data/ores.json; from cache/sde/reprocessing.json (once the
  * SDE job has run) every ore, moon ore and ice and every material anything reprocesses into (minerals, ice
- * products, salvage, components, ...); and every other item (modules, ships, ...) a page has asked prices.php for in the last REQUEST_TTL
+ * products, salvage, components, ...); the hybrid drones in data/rdf.json (RDF loot); and every other item (modules, ships, ...) a page has asked prices.php for in the last REQUEST_TTL
  * (cache/price_requests.json, {typeID: last asked}, written by prices.php; older entries are dropped here).
  * Fuzzwork is asked for at most CHUNK items per request.
  * "fetchedAt" is when these prices were first seen: a fetch that returns the same prices keeps the old time.
@@ -64,10 +64,17 @@ function priceTypes(string $site): array {
     $repro = readJson("$site/cache/sde/reprocessing.json");
     foreach (array_keys($repro['materials'] ?? []) as $id) $ids[(int)$id] = true;
     foreach ($repro['items'] ?? [] as $id => $it) if (($it['class'] ?? '') !== 'scrap') $ids[(int)$id] = true;   // every ore, moon ore, ice
+    foreach (rdfDrones($site) as $id) $ids[$id] = true;                                // RDF loot (hybrid drones)
     foreach (requestedTypes("$site/cache/price_requests.json") as $id) $ids[$id] = true;
     $ids = array_keys($ids);
     sort($ids);
     return $ids;
+}
+
+// Hybrid drones from data/rdf.json (RDF loot); none if the file is missing.
+function rdfDrones(string $site): array {
+    $rdf = readJson("$site/data/rdf.json");
+    return array_map(function ($d) { return (int)$d[0]; }, $rdf['drones'] ?? []);
 }
 
 // Items pages asked for on demand (prices.php adds them), minus those nobody asked for in REQUEST_TTL.

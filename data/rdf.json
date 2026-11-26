@@ -1,0 +1,23 @@
+{
+  "_": "Hybrid drones the Rampant Drone Fabricator drops: [typeID, name, packaged m3]. CCP group Hybrid Drone (5239), from ESI. Priced by cron/prices.php.",
+  "drones": [
+    [92035, "Arabellata SW-900-I", 25],
+    [92466, "Atlas SD-900-I", 25],
+    [92462, "Darter TP-600-I", 10],
+    [92041, "Humboldt EC-900-I", 25],
+    [92034, "Huntsman SW-600-I", 10],
+    [92468, "Immaculate TD-600-I", 10],
+    [92039, "Inshore EC-300-I", 5],
+    [92465, "Luna SD-600-I", 10],
+    [92463, "Meganeura TP-900-I", 25],
+    [92037, "Mosquito EV-600-I", 10],
+    [92040, "Nertic EC-600-I", 10],
+    [92033, "Orbweaver SW-300-I", 5],
+    [92461, "Skimmer TP-300-I", 5],
+    [92467, "Stellate TD-300-I", 5],
+    [92464, "Stigmella SD-300-I", 5],
+    [92038, "Tabanida EV-900-I", 25],
+    [92036, "Tick EV-300-I", 5],
+    [92469, "Torafugu TD-900-I", 25]
+  ]
+}
