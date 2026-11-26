@@ -126,7 +126,7 @@ renderPrices();
    Re-read js/version.js from the server, bypassing the browser cache. When its APP_VERSION is newer than the one
    this page loaded, offer a reload. Versions are "MAJOR.MINOR" (a plain "3" counts as "3.0"). */
 const VERSION_URL = new URL("./version.js", import.meta.url);
-const SHELL_FILES = ["../index.html", "../css/app.css", "./app.js", "./shared.js", "./prices.js", "./version.js", "../data/ores.json", "../data/markets.json"];
+const SHELL_FILES = ["../index.html", "../css/app.css", "./app.js", "./shared.js", "./prices.js", "./version.js", "../data/ores.json", "../data/markets.json", "../data/rdf.json"];
 let lastCheck = 0, checking = false, noServer = false, dismissed = "";
 const VERSION_RE = /APP_VERSION\s*=\s*["']?(\d+(?:\.\d+)?)/;
 // Compare "MAJOR.MINOR" versions part by part (so 3.10 is newer than 3.9): >0 when a is newer than b.

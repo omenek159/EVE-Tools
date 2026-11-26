@@ -3,7 +3,10 @@
 // multiplier T. Threat comes from the Rampancy of the ships on grid. Mechanics: patch notes 23.02 and 24.01
 // (2026-09-22 data increase); U and T from in-game cargo scans (corp sheet "Rampant Drone Science"), see below.
 import { nf0, isk, esc, store } from "../shared.js";   // store: only to clear what an earlier version saved
+import * as P from "../prices.js";
 
+const DATA_URL = new URL("../../data/rdf.json", import.meta.url);   // the hybrid drones the Fabricator drops
+const SIZES = { 5: "light", 10: "medium", 25: "heavy" };              // by packaged m³
 const OLD_KEY = "eveTools.rdf.v1";   // earlier versions saved settings here; nothing is saved now
 
 /* ---------- game constants (edit these two maps after a patch) ---------- */
@@ -65,6 +68,9 @@ const FULL_RUN = MAX_WAVE * (MAX_WAVE + 1) / 2;   // 5,050
 /* ---------- formulas ---------- */
 export const threatOf = r => THREATS.reduce((t, x) => r >= x.min ? x : t, THREATS[0]);
 export const baseData = (cls, threat) => CLASS_UNIT[cls] * threat.mult;          // m
+// Must match in-game readings: C3 Critical waves 1/2/3/7 = 32/96/192/896, C4 Critical 8 = 1,440, C5 Critical 7/8 =
+// 1,344/1,728, C4 Severe 6 = 420, C6 Severe 10 = 1,320 (cargo scans); C5 Critical 25 = 15,600 and 31 = 23,808 (corp
+// runs of 2026-11-20, Janice appraisals vBtua5 and fE3IJ6: the Fabricator's whole loot).
 export const totalData = (m, n) => m * n * (n + 1) / 2;
 export const waveGain = (m, n) => m * n;
 
@@ -101,6 +107,18 @@ const TEMPLATE = `
         </details>
       </section>
 
+      <section class="panel" aria-labelledby="h-rdf-loot">
+        <details class="fold" id="lootFold">
+          <summary><h3 id="h-rdf-loot">Drones</h3><span class="sum" id="lootSum"></span></summary>
+          <div class="fold-body">
+            <textarea id="lootPaste" class="mono" spellcheck="false" aria-label="Cargo with the Fabricator's drones" style="height:120px"
+              placeholder="Open the cargo in list view, select the items (Ctrl+A), copy (Ctrl+C) and paste here. Only hybrid drones are counted; the data dump's value always comes from the selected wave."></textarea>
+            <div class="scan-actions"><button class="btn" id="lootClear" type="button">Clear</button><span class="note" id="lootNote"></span></div>
+            <div class="tablewrap" id="lootWrap" hidden><table class="data" id="lootTable"></table></div>
+          </div>
+        </details>
+      </section>
+
       <section class="panel" aria-labelledby="h-rdf-pay">
         <div class="head"><h2 id="h-rdf-pay">Payout</h2>
           <div class="pay-actions">
@@ -116,7 +134,7 @@ const TEMPLATE = `
   </div>`;
 
 /* ---------- state ---------- */
-let S, $;
+let S, $, DRONES = new Map(), loot = [], ignored = 0;   // DRONES: lower-case name -> {id, name, vol}; loot: pasted drones
 // Nothing is saved in the browser: every visit starts from these.
 function defaults() { return { cls: "C3", ships: {}, wave: 20, step: 5, open: true, dim: [] }; }
 const clampWave = v => Math.min(MAX_WAVE, Math.max(MIN_WAVE, Math.round(+v) || MIN_WAVE));
@@ -127,6 +145,48 @@ const pilots = () => shipsOnGrid();   // 0 with no ships: per pilot shows 0 in t
 const share = n => n * (n + 1) / (MAX_WAVE * (MAX_WAVE + 1));
 const pct = x => (x * 100).toFixed(1) + "%";
 const m = () => baseData(S.cls, threatOf(rampancy()));
+
+/* ---------- pasted loot: hybrid drones only ---------- */
+const cleanTxt = t => t.replace(/[\u00a0\u202f\u2009]/g, " ").trim();
+// Cargo list view: name, quantity, then group, ... Same drones are added up; anything else (the data dump too) is ignored.
+function parseLoot(text) {
+  const byId = new Map(); let skip = 0;
+  for (const raw of text.split(/\r?\n/)) {
+    if (!raw.trim()) continue;
+    let cols = raw.split("\t").map(cleanTxt);
+    if (cols.length < 2) { const mt = cleanTxt(raw).match(/^(.*?[^\d\s])\s+(\d[\d ,.]*)(?:\s|$)/); cols = mt ? [mt[1], mt[2]] : [cleanTxt(raw), "1"]; }
+    const d = DRONES.get(cols[0].replace(/\*$/, "").trim().toLowerCase());
+    const qty = cols[1] === "" ? 1 : parseInt(cols[1].replace(/[^\d]/g, ""), 10);
+    if (!d || !(qty > 0)) { skip++; continue; }
+    if (!byId.has(d.id)) byId.set(d.id, { ...d, qty: 0 });
+    byId.get(d.id).qty += qty;
+  }
+  return { list: [...byId.values()].sort((a, b) => a.name.localeCompare(b.name)), skip };
+}
+// Value of the pasted drones at the market and basis chosen in Settings; drones without a price count as 0.
+function drones() {
+  let value = 0, count = 0, vol = 0, unpriced = 0;
+  for (const d of loot) { const pr = P.price(d.id); count += d.qty; vol += d.qty * d.vol; if (pr == null) unpriced += d.qty; else value += pr * d.qty; }
+  return { value, count, vol, unpriced };
+}
+
+function renderLoot() {
+  const t = drones();
+  $("#lootSum").innerHTML = loot.length ? `<b>${nf0.format(t.count)}</b> drone${t.count === 1 ? "" : "s"} · <b>${isk(t.value)}</b>` : "paste your cargo to add drones to the payout";
+  $("#lootNote").textContent = [ignored ? `${nf0.format(ignored)} other line${ignored === 1 ? "" : "s"} ignored` : "",
+    t.unpriced ? `${nf0.format(t.unpriced)} drone${t.unpriced === 1 ? " has" : "s have"} no price on ${P.hubName()}` : ""].filter(Boolean).join(" · ");
+  $("#lootWrap").hidden = !loot.length;
+  if (!loot.length) { $("#lootTable").innerHTML = ""; return; }
+  $("#lootTable").innerHTML = `<thead><tr><th>Drone</th><th>Qty</th><th>Size</th><th>Unit price</th><th>Value</th></tr></thead>
+    <tbody>${loot.map(d => { const pr = P.price(d.id); return `<tr><td>${esc(d.name)}</td><td>${nf0.format(d.qty)}</td><td>${SIZES[d.vol] || ""}</td>
+      <td>${pr == null ? "no price" : isk(pr)}</td><td>${pr == null ? "—" : isk(pr * d.qty)}</td></tr>`; }).join("")}
+    <tr class="total"><td>Total</td><td>${nf0.format(t.count)}</td><td>${nf0.format(t.vol)} m³</td><td></td><td>${isk(t.value)}</td></tr></tbody>`;
+}
+function onPaste() {
+  const r = parseLoot($("#lootPaste").value);
+  loot = r.list; ignored = r.skip;
+  renderLoot(); renderTiles();
+}
 
 /* ---------- render ---------- */
 function render() {
@@ -169,14 +229,14 @@ function toggleSwarm(n) {
 // The payout tiles for the selected wave.
 function renderTiles() {
   const mm = m(), n = S.wave, p = pilots();
-  const tot = totalData(mm, n), val = tot * PRICE;
+  const tot = totalData(mm, n), val = tot * PRICE, dr = drones(), all = val + dr.value;
   const gainNext = n < MAX_WAVE ? waveGain(mm, n + 1) : 0;
   $("#tiles").innerHTML = `
     <div class="tile lead"><span>Data after wave ${n}</span><b>${nf0.format(tot)}</b><small>${nf0.format(tot * VOLUME)} m³</small></div>
     <div class="tile lead"><span>Worth</span><b>${isk(val)}</b><small>${nf0.format(PRICE)} ISK per unit</small></div>
-    <div class="tile"><span>Per pilot</span><b>${p ? isk(val / p) : "0"}</b><small>${p ? `${p} pilot${p === 1 ? "" : "s"} · ${nf0.format(tot / p)} data` : "no ships on grid"}</small></div>
-    <div class="tile"><span>Next wave adds</span><b>${n < MAX_WAVE ? isk(gainNext * PRICE) : "—"}</b><small>${n < MAX_WAVE ? `${nf0.format(gainNext)} data · ${p ? isk(gainNext * PRICE / p) : "0"} per pilot` : "last wave"}</small></div>
-    <div class="tile"><span>Share of full run</span><b>${pct(share(n))}</b><small>full run ${nf0.format(mm * FULL_RUN)} data · ${isk(mm * FULL_RUN * PRICE)}</small></div>`;
+    ${loot.length ? `<div class="tile"><span>Drones</span><b>${isk(dr.value)}</b><small>${nf0.format(dr.count)} drones · ${nf0.format(dr.vol)} m³</small></div>` : ""}
+    <div class="tile"><span>Per pilot</span><b>${p ? isk(all / p) : "0"}</b><small>${p ? `${p} pilot${p === 1 ? "" : "s"} · ${nf0.format(tot / p)} data${loot.length ? ` · incl. ${isk(dr.value / p)} drones` : ""}` : "no ships on grid"}</small></div>
+    <div class="tile"><span>Next wave adds</span><b>${n < MAX_WAVE ? isk(gainNext * PRICE) : "—"}</b><small>${n < MAX_WAVE ? `${nf0.format(gainNext)} data · ${p ? isk(gainNext * PRICE / p) : "0"} per pilot` : "last wave"}</small></div>`;
   $("#copyRow").textContent = `Copy wave ${n}`;
 }
 
@@ -205,8 +265,9 @@ function selectWave(w) {
 }
 
 function copyText() {
-  const mm = m(), n = S.wave, d = totalData(mm, n), v = d * PRICE;
-  return `Wave ${n}\nFabricator data: ${nf0.format(d)}\nTotal worth: ${isk(v)} (${pilots() ? isk(v / pilots()) : "0"} per pilot)\n${pct(share(n))} of full run`;
+  const mm = m(), n = S.wave, d = totalData(mm, n), dr = drones(), v = d * PRICE + dr.value;
+  return `Wave ${n}\nFabricator data: ${nf0.format(d)}\n${loot.length ? `Drones: ${nf0.format(dr.count)} (${isk(dr.value)})\n` : ""}`
+    + `Total worth: ${isk(v)} (${pilots() ? isk(v / pilots()) : "0"} per pilot)\n${pct(share(n))} of full run`;
 }
 async function copy() {
   const txt = copyText(), b = $("#copyRow");
@@ -224,16 +285,24 @@ async function copy() {
 function fill() {
   $("#sevFold").open = !!S.open;
   $("#ships").querySelectorAll("input[data-ship]").forEach(i => { i.value = count(i.dataset.ship) || ""; });
+  $("#lootPaste").value = ""; loot = []; ignored = 0;
   renderSwarms();
+  renderLoot();
   render();
 }
 
 /* ---------- module API ---------- */
-export function mount(el) {
+export async function mount(el) {
   el.innerHTML = TEMPLATE;
   $ = sel => el.querySelector(sel);
   S = defaults();
   store.remove(OLD_KEY);
+  try {
+    const r = await fetch(DATA_URL);
+    for (const [id, name, vol] of (await r.json()).drones) DRONES.set(name.toLowerCase(), { id, name, vol });
+  } catch (_) { /* no drone list: pasted cargo just isn't recognised */ }
+  P.want([...DRONES.values()].map(d => d.id));
+  P.on(() => { renderLoot(); renderTiles(); });
 
   $("#cls").innerHTML = Object.keys(CLASS_UNIT).map(c => `<button type="button" data-cls="${c}">${c}</button>`).join("");
   $("#ships").innerHTML = SHIPS.map(([id, name, r]) =>
@@ -265,6 +334,8 @@ export function mount(el) {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectWave(+tr.dataset.wave); }
   });
   $("#copyRow").addEventListener("click", copy);
+  $("#lootPaste").addEventListener("input", onPaste);
+  $("#lootClear").addEventListener("click", () => { $("#lootPaste").value = ""; onPaste(); $("#lootPaste").focus(); });
   $("#swarmRows").addEventListener("click", e => {
     const tr = e.target.closest("tr[data-swarm]"); if (tr) toggleSwarm(tr.dataset.swarm);
   });
@@ -277,6 +348,7 @@ export function mount(el) {
   fill();
 }
 
-export const unsavedNote = () => shipsOnGrid() ? "the RDF fleet" : null;   // the rest is easy to set again
+// The rest is easy to set again.
+export const unsavedNote = () => [shipsOnGrid() ? "the RDF fleet" : "", loot.length ? "the pasted RDF loot" : ""].filter(Boolean).join(" and ") || null;
 
 export function reset() { S = defaults(); if ($) fill(); }
