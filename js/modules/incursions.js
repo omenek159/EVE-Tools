@@ -118,7 +118,7 @@ const TEMPLATE = `
     </div>
   </div>
   <footer class="note">
-    Calculation logic ported from the TLA waitlist (github.com/luna-duclos/tla-waitlist, MIT licence).
+    <p class="credit">Calculation logic ported from the <b>TLA waitlist</b> (<span class="url">github.com/luna-duclos/tla-waitlist</span>, MIT licence)</p>
   </footer>`;
 
 let $, update;
