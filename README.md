@@ -1,41 +1,33 @@
 # EVE Tools
 
-Calculators for EVE Online in one web app.
+Calculators for EVE Online pilots, all in one place: **https://eve.omenek.pl**
 
-- **Ore prices** — ISK per hour by ore and grade (compressed vs raw) and gas for your fleet of miners and huffers; cargo-hold value and share split; belt value from the mining scanner; session estimates. Prices from Fuzzwork.
-- **Reprocessing** — what pasted items (ore, ice, modules, ships, …) reprocess into, the tax, and whether reprocessing beats selling them; structure, rigs, skills and implants.
-- **Incursions** — ISK/h and LP from your pasted wallet journal (based on the TLA Incursion calculator).
+EVE Tools answers the "is it worth it?" questions that come up while you play: which ore pays best, whether to reprocess or sell your loot, how much your incursion fleet really earns, and when to stop a Rampant Drone Fabricator. Pick a tool from the menu at the top. There's nothing to install and no account to create.
 
-## Hosting
+## The tools
 
-Needs a PHP web server (PHP 7.4+) and cron with PHP CLI (curl and zip extensions). Upload everything except `cache/`. The cron jobs create `cache/` in the site folder, so it must be writable by the user cron runs as. Static hosting such as GitHub Pages isn't supported: prices come only from `prices.php`.
+**Ore prices.** Shows how much ISK per hour each ore earns your mining fleet, raw or compressed, plus gas. Add your miners, paste what's in your cargo hold or what your mining scanner sees, and get the value of the belt and how long your fleet needs to clear it.
 
-Two cron jobs keep the server's data current; set both up for each instance (Deploy puts `cron/` into `/eve_cron/` for live and `/evetest_cron/` for test, outside the web roots):
+**Reprocessing.** Paste items from your hangar (ore, ice, modules, ships) and see what they reprocess into, what that's worth, the tax, and whether reprocessing beats selling them as they are. Set your structure, rigs, skills and implant to match your own setup.
 
-- `php <cron folder>/prices.php <site folder>` every 2 minutes: Fuzzwork market prices, fetched when Fuzzwork publishes new data.
-- `php <cron folder>/sde.php <site folder>` every hour: game data from CCP's SDE, downloaded only when CCP publishes a new build.
+**Incursions.** Paste your wallet journal to see what your incursion fleet really earns per hour, with the sites you ran and the LP you got.
 
-Until a job has run once, the modules that need it show an error. The jobs print nothing unless something changed or failed.
+**RDF** *(alpha)*. For the Rampant Drone Fabricator in wormholes: pick the wormhole class, enter the ships on grid, and see how much Fabricator data you'll have after each wave, what it's worth and each pilot's share. Paste your cargo to add the drones you looted. The Notes at the bottom of the page say which numbers are confirmed in game.
 
-The app ships with no prices and loads them through `prices.php` on first launch; everyone using the page shares one copy, refreshed from Fuzzwork when it publishes new market data (about every 30 minutes). Open pages offer a reload when `js/version.js` on the server has a higher `APP_VERSION` (`"MAJOR.MINOR"`: MINOR for small fixes, MAJOR for new features).
+## How it works
 
-## Branches
+- **Market prices** are kept up to date automatically; new market data arrives about every 30 minutes. Choose the market hub and the price type (for example Jita sell or buy orders) once in **Settings**, and every tool uses them. The top bar shows when prices were last updated.
+- **Game data** such as what items reprocess into is updated automatically when a new version of EVE comes out.
+- **Your settings** are remembered in your browser, so a tool opens the way you left it. What you paste stays in your browser: the server is only asked for the prices it needs. RDF doesn't remember anything and starts fresh every time.
+- **Light and dark theme** follow your system, or you can pick one in Settings.
+- When a new version of the site is available, a bar at the top offers to reload the page.
 
-- `main`: what's live; it only receives merges.
-- `rc`: finished features tested together before release.
-- `feat-<name>`: work on a new module.
-- `fix-<name>`: a small change to live, made from `main`, then merged into `main`, `rc` and the `feat-*` branches.
+## Credits
 
-See `CLAUDE.md` for the full workflow and versioning.
+- **Incursions:** the calculation comes from the [TLA waitlist](https://github.com/luna-duclos/tla-waitlist) (MIT licence).
+- **RDF:** calculations are based on the RDF spreadsheet by **BaneOfUtric**.
+- **EVE University wiki:** Rampant Drone Fabricator details (ship Rampancy, Nanoswarms and their icons) and reprocessing rules.
+- **Fuzzwork:** market prices, from [market.fuzzwork.co.uk](https://market.fuzzwork.co.uk).
+- **CCP Games:** game data and adjusted prices from EVE Online's public data (SDE and ESI).
 
-## Deploy
-
-GitHub → Actions → Deploy → Run workflow, then pick the branch: `main` goes to the live site, any other branch to the test site. Pushing a branch doesn't deploy. Setup (FTP secrets and folders) is described at the top of `.github/workflows/deploy.yml`.
-
-## Run locally
-
-```
-PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8000
-```
-
-Then open http://127.0.0.1:8000. No build step. See `CLAUDE.md` for structure and how to add a tool.
+EVE Online and all related names, images and data are the property of CCP hf. EVE Tools is a fan project and is not affiliated with or endorsed by CCP.
