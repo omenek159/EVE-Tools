@@ -1,4 +1,4 @@
-// Ore Profit Calculator module (ported from the standalone Ore Profit Calculator v26).
+// Mining calculator module, menu "Mining calc" (ported from the standalone Ore Profit Calculator v26).
 // Prices come from the app's shared price service (js/prices.js: market and basis chosen in Settings).
 import { r2, nf2, nf0, isk, fullIsk, esc, showTip, hideTip, store, sendTo } from "../shared.js";
 import * as P from "../prices.js";
@@ -16,7 +16,7 @@ const GAS_SECTIONS = [                 // wormhole gas first, then k-space gas
 
 const TEMPLATE = `
   <div class="head">
-    <h1>Ore Profit Calculator</h1>
+    <h1>Mining calculator</h1>
     <span class="sub">Income per hour and belt value for your fleet, priced from Fuzzwork market data</span>
   </div>
   <div class="layout">

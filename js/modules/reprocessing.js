@@ -250,13 +250,13 @@ export async function mount(el) {
   setInterval(syncAdjusted, ADJ_EVERY);
   refill = () => { S = defaults(); fill(); renderYields(); render(); };
 
-  /* ----- items sent from another tool (Ore calculator → Reprocess): replace the paste and calculate ----- */
+  /* ----- items sent from another tool (Mining calculator → Reprocess): replace the paste and calculate ----- */
   function receive() {
     const d = takeFor("reprocessing");
     if (!d || !d.text) return;
     $("paste").value = pasteText = d.text; source = "";
     $("calc").click();
-    source = d.from ? `from the Ore calculator's ${d.from}` : ""; render();
+    source = d.from ? `from the Mining calculator's ${d.from}` : ""; render();
     requestAnimationFrame(() => $("results").scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
