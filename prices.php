@@ -1,6 +1,6 @@
 <?php
 /*
- * EVE Tools: price and version endpoint (used by the Ore prices module and the app's update check).
+ * EVE Tools: price and version endpoint (used by the Mining calculator and the app's update check).
  *
  * GET prices.php?market=station:60003760&types=1230,62516,...[&since=<unix seconds>]
  * GET prices.php?version=1                     -> {"version":"4.1"} only

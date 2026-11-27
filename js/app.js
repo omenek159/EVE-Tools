@@ -7,8 +7,8 @@ import * as P from "./prices.js";
    To add a tool: create js/modules/<name>.js exporting mount(el) and optionally reset(),
    then add one entry here. `tag` (optional) is a small label next to the name in the menu, e.g. "WIP". `keys` are the browser-storage keys the module uses (for Settings → reset). */
 const MODULES = [
-  { id: "ore-prices", label: "Ore prices", file: "./modules/ore.js",
-    resetLabel: "Reset ore calculator", keys: ["oreProfitCalc.v1"] },
+  { id: "mining", label: "Mining calc", file: "./modules/ore.js",
+    resetLabel: "Reset mining calculator", keys: ["oreProfitCalc.v1"] },
   { id: "reprocessing", label: "Reprocessing", file: "./modules/reprocessing.js",
     resetLabel: "Reset reprocessing settings", keys: ["eveTools.reprocessing.v1"] },
   { id: "incursions", label: "Incursions", file: "./modules/incursions.js", keys: [] },   // saves nothing
@@ -20,6 +20,7 @@ const LIVE = MODULES.filter(m => !m.soon);
 const APP_KEY = "eveTools.app.v1";
 const APP = Object.assign({ theme: "auto", start: LIVE[0].id }, store.getJSON(APP_KEY, {}));
 const saveApp = () => store.setJSON(APP_KEY, APP);
+if (!LIVE.some(m => m.id === APP.start)) APP.start = LIVE[0].id;   // a saved start tab that no longer exists (e.g. the old "ore-prices")
 
 function applyTheme() {
   if (APP.theme === "auto") delete document.documentElement.dataset.theme;

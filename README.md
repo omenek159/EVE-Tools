@@ -6,7 +6,7 @@ EVE Tools answers the "is it worth it?" questions that come up while you play: w
 
 ## The tools
 
-**Ore prices.** Shows how much ISK per hour each ore earns your mining fleet, raw or compressed, plus gas. Add your miners, paste what's in your cargo hold or what your mining scanner sees, and get the value of the belt and how long your fleet needs to clear it.
+**Mining calc.** Shows how much ISK per hour each ore earns your mining fleet, raw or compressed, plus gas. Add your miners, paste what's in your cargo hold or what your mining scanner sees, and get the value of the belt and how long your fleet needs to clear it.
 
 **Reprocessing.** Paste items from your hangar (ore, ice, modules, ships) and see what they reprocess into, what that's worth, the tax, and whether reprocessing beats selling them as they are. Set your structure, rigs, skills and implant to match your own setup.
 
