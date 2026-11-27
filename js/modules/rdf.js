@@ -78,7 +78,7 @@ export const waveGain = (m, n) => m * n;
 
 const TEMPLATE = `
   <div class="head">
-    <div class="title-row"><h1>Rampant Drone Fabricator</h1><span class="tag">alpha</span>
+    <div class="title-row"><h1>Rampant Drone Fabricator</h1><span class="tag">WIP</span>
       <button class="btn-link" id="toNotes" type="button">Notes</button></div>
     <span class="sub">Rampancy Data Dump collected by the wave you stop at, and what it's worth</span>
   </div>
@@ -101,7 +101,7 @@ const TEMPLATE = `
     <div class="mainc">
       <section class="panel" aria-labelledby="h-rdf-sev">
         <details class="fold" id="sevFold">
-          <summary><h3 id="h-rdf-sev">Severity</h3><span class="sum" id="sevSum"></span></summary>
+          <summary><h3 id="h-rdf-sev">Threat</h3><span class="sum" id="sevSum"></span></summary>
           <div class="fold-body">
             <div class="legend" id="sevLegend"></div>
             <div class="ship-grid" id="ships"></div>
@@ -212,7 +212,7 @@ function render() {
   $("#cls").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.cls === S.cls));
   $("#whData").innerHTML = `
     <div class="tile"><span>Rampancy on grid</span><b>${nf0.format(r)}</b>${next ? `<small>${next.id} at ${next.min}</small>` : ""}</div>
-    <div class="tile"><span>Severity</span><b><span class="pill ${pillCls}">${t.id}</span></b></div>
+    <div class="tile"><span>Threat</span><b><span class="pill ${pillCls}">${t.id}</span></b></div>
     <div class="tile"><span>Data after wave 1</span><b>${nf0.format(mm)}</b></div>
     <div class="tile"><span>Pause between waves</span><b>${t.pause} s</b></div>`;
 

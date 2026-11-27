@@ -12,7 +12,7 @@ EVE Tools answers the "is it worth it?" questions that come up while you play: w
 
 **Incursions.** Paste your wallet journal to see what your incursion fleet really earns per hour, with the sites you ran and the LP you got.
 
-**RDF** *(alpha)*. For the Rampant Drone Fabricator in wormholes: pick the wormhole class, enter the ships on grid, and see how much Fabricator data you'll have after each wave, what it's worth and each pilot's share. Paste your cargo to add the drones you looted. The Notes at the bottom of the page say which numbers are confirmed in game.
+**RDF** *(WIP)*. For the Rampant Drone Fabricator in wormholes: pick the wormhole class, enter the ships on grid, and see how much Fabricator data you'll have after each wave, what it's worth and each pilot's share. Paste your cargo to add the drones you looted. The Notes at the bottom of the page say which numbers are confirmed in game.
 
 ## How it works
 
