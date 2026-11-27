@@ -10,9 +10,14 @@ css/app.css              all styles; theme tokens at the top (light + dark)
 js/app.js                MODULES registry, menu, hash routing, lazy loading, settings, update check
 js/version.js            APP_VERSION "MAJOR.MINOR" — raise it on every release; open pages poll this file for the update bar
 prices.php               serves the prices saved by cron/prices.php (cache/prices_*.json) + the app version; fetches from Fuzzwork only items it has never priced
+stats.php                visitor statistics (private, password): visitors, visits, peak hours, tools, markets, countries/cities, IP list
+lib/usage.php            visitor statistics: logs the app's heartbeats (via prices.php), visits, daily summaries, 30-day IP retention
+lib/geoip.php            MaxMind DB (.mmdb) reader for the GeoIP lookup (no extension needed)
 sde.php                  serves game data extracted from the SDE (cache/sde/<set>.json) to modules
 cron/sde.php             cron job (CLI only, deployed outside the web root): downloads a new SDE build when CCP publishes one, extracts what modules need
 cron/prices.php          cron job: fetches Fuzzwork prices for every market when Fuzzwork publishes new data; ESI adjusted prices hourly
+cron/geoip.php           cron job: installs DB-IP's monthly City Lite GeoIP database (cache/geoip/)
+cron/stats-password.php  run by hand: sets the stats.php password (cache/stats_auth.json)
 cron/lib.php             helpers shared by the cron jobs (site folder argument, locking, HTTP, atomic JSON writes)
 data/markets.json        the markets prices are kept for (used by prices.php and cron/prices.php)
 data/rdf.json            the 18 hybrid drones the Rampant Drone Fabricator drops ([typeID, name, m³]; RDF module and the price job)
@@ -41,7 +46,7 @@ data/*.json              static data a module fetches (hand-maintained; game dat
 - Colours only via CSS variables; check both light and dark themes.
 - Numbers: monospace, tabular, right-aligned. ISK via `isk()` (1.2M / 3.40B).
 - Browser storage only through `store` in `shared.js` (it may be unavailable). Storage is per-browser convenience, never the only copy of something important.
-- No footers, except where a licence or a source needs a credit (`footer.note` in Incursions: the TLA waitlist, MIT; RDF's notes footer: the credit to BaneOfUtric's RDF spreadsheet, always shown). Formulas, outside numbers and data sources are documented in the "Tools and sources" section below and in code comments, with their source; they are not shown on the page.
+- No footers, except where a licence or a source needs a credit (`footer.note` in Incursions: the TLA waitlist, MIT; RDF's notes footer: the credit to BaneOfUtric's RDF spreadsheet, always shown; stats.php's footer: DB-IP, CC BY 4.0). Formulas, outside numbers and data sources are documented in the "Tools and sources" section below and in code comments, with their source; they are not shown on the page.
 - Sending data to another tool: `sendTo(id, data)` from `shared.js` leaves it for that tool and opens its tab; the tool reads it with `takeFor(id)` at the end of `mount` and on the `eve:handoff` event.
 - Market prices only through `js/prices.js`: call `want(ids)` in `mount`, read `price(id)`, re-render on `on(fn)`. No market/basis pickers or price status inside modules: they live in Settings and the header.
 
@@ -54,6 +59,8 @@ data/*.json              static data a module fetches (hand-maintained; game dat
 **Cron jobs** (`cron/`, run with PHP CLI). Deploy uploads `cron/` to its own folder outside the web roots, one per instance: `/eve_cron/` (live) and `/evetest_cron/` (test) in the FTP root (`FTP_CRON_DIR_LIVE` / `FTP_CRON_DIR_TEST` override), so each job takes the instance's folder as its first argument; without it, the folder above the script is used. `cron/.htaccess` and a CLI check keep the jobs off the web wherever they end up.
 
 - `php <cron folder>/prices.php <site folder>` — every 2 minutes, once per instance. Writes `cache/prices_<market>.json`, `cache/prices_state.json` (`runAt`, `error`) and, at most hourly, `cache/adjusted_prices.json` (ESI `/markets/prices` adjusted prices, used for reprocessing tax). `--force` fetches everything now.
+- `php <cron folder>/geoip.php <site folder>` — once a day, once per instance. Installs DB-IP's "IP to City Lite" database (CC BY 4.0, free, monthly, `download.db-ip.com/free/dbip-city-lite-YYYY-MM.mmdb.gz`, ~130 MB) as `cache/geoip/dbip-city-lite.mmdb` when a new month is out (falls back to last month's early in the month); a new file replaces the old one only after it opens and 8.8.8.8 is in the US (previous copy `*.prev.mmdb`); `cache/geoip/state.json` (`month`, `error`). Not the paid "IP to Location" database (5+ GB). `--force` downloads again.
+- `php <cron folder>/stats-password.php <site folder>` — by hand, once: asks for the stats.php password (at least 10 characters) and saves its hash in `cache/stats_auth.json`; a new password signs everyone out.
 - `php <cron folder>/sde.php <site folder>` — every hour, once per instance. Reads CCP's `latest.jsonl` (build number); only when the build changed it downloads the JSONL zip (~100 MB, needs ~700 MB free while unpacking), streams the needed files and writes `cache/sde/reprocessing.json` + `state.json`. A new file replaces the old one only after `validateReprocessing()` passes (known values confirmed in game); the previous copy is kept as `*.prev.json`. `--force` extracts again. Exits 1 and keeps the old data on any error.
 - Server paths (use these when giving the user commands; PHP CLI is `/usr/local/bin/php`):
 
@@ -68,6 +75,8 @@ data/*.json              static data a module fetches (hand-maintained; game dat
 - Outgoing requests from server jobs use User-Agent `EVE-Tools by omenek`.
 
 **Deploy:** `.github/workflows/deploy.yml` uploads over FTP(S) only when run by hand (GitHub → Actions → Deploy → Run workflow). Branch `main` goes to the live site (https://eve.omenek.pl); any other branch goes to the test site (https://evetest.omenek.pl). Pushing deploys nothing.
+
+**Visitor statistics:** every open page POSTs a heartbeat to `prices.php` (`beat=1`; POST to the price endpoint so ad blockers don't take it for a tracker) on load, on tab change, every 2 minutes while visible, and once with no tool when hidden or closed; `pv` is a random id per page load (memory only: no cookie, no storage), `r=1` when the browser had `eveTools.prices.v1` before (returning). `lib/usage.php` appends it to `cache/usage/<UTC day>.jsonl` with the IP address, device/browser/system from the User-Agent and the location from the GeoIP database; bots (User-Agent) are skipped. On the first beat of a UTC day and whenever stats.php opens, finished days are folded into `cache/usage/summary.json` (counts only, kept for good; per-day visitor ids until the month ends, then the month's distinct count) and raw files older than 30 days are deleted. A visit's time on a tool = time to its next beat, at most 150 s. `stats.php` (not in the menu) shows it behind a password (signed cookie for 30 days, 10 wrong passwords per IP per hour); times in UTC. Settings → Privacy tells visitors what is logged and for how long; keep it in step with what's logged.
 
 **Update bar:** the shell re-reads `js/version.js` (no-store) every 5 minutes and when the tab comes back; if its APP_VERSION is higher than the loaded one, it offers a reload.
 

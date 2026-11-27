@@ -63,8 +63,29 @@ function route() {
   views.querySelectorAll("[data-view-panel]").forEach(p => p.hidden = p.dataset.viewPanel !== m.id);
   menu.querySelectorAll("a[data-view]").forEach(a => a.dataset.view === m.id ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
   hideTip();
+  if (m.id !== shownTool) { shownTool = m.id; beat(); }
 }
 addEventListener("hashchange", route);
+
+/* ---------- visitor statistics heartbeat ----------
+   Tells the server which tool is on screen: when the page loads, when the tab changes, every 2 minutes while the
+   page is visible, and once (no tool) when it's hidden or closed. Logged by prices.php (lib/usage.php), shown on
+   stats.php. PAGE_ID is random per page load and lives in memory only. POST to prices.php so it isn't mistaken
+   for an ad tracker and blocked. */
+const BEAT_URL = new URL("../prices.php", import.meta.url);
+const PAGE_ID = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
+let shownTool = "", firstBeat = true;
+function beat(hidden = false) {
+  if (hidden ? firstBeat : document.visibilityState !== "visible") return;   // nothing to close before the first beat
+  const p = new URLSearchParams({ beat: "1", pv: PAGE_ID, tool: hidden ? "" : shownTool, m: P.hub() });
+  if (firstBeat && !hidden) { p.set("n", "1"); if (P.returning) p.set("r", "1"); firstBeat = false; }
+  try {
+    if (!(navigator.sendBeacon && navigator.sendBeacon(BEAT_URL, p)))
+      fetch(BEAT_URL, { method: "POST", body: p, keepalive: true }).catch(() => {});
+  } catch (_) {}
+}
+setInterval(() => beat(), 2 * 60 * 1000);
+document.addEventListener("visibilitychange", () => beat(document.visibilityState !== "visible"));
 
 /* ---------- settings drawer ---------- */
 const drawer = document.getElementById("settings"), scrim = document.getElementById("scrim"), opener = document.getElementById("openSettings");

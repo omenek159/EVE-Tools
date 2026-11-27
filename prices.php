@@ -4,6 +4,7 @@
  *
  * GET prices.php?market=station:60003760&types=1230,62516,...[&since=<unix seconds>]
  * GET prices.php?version=1                     -> {"version":"4.1"} only
+ * POST prices.php beat=1&pv=..&tool=..&m=..     -> 204; a visitor statistics heartbeat from js/app.js (lib/usage.php)
  * GET prices.php?adjusted=1&types=34,35,...    -> {"version","fetchedAt","data":{typeID: adjusted price}}
  *     CCP's adjusted prices (ESI), saved by the same job at most hourly; used for reprocessing tax.
  *
@@ -102,6 +103,19 @@ function touchRequests(array $ids): void {
     foreach ($ids as $id) $all[$id] = time();
     ftruncate($fh, 0); rewind($fh); fwrite($fh, json_encode($all));
     flock($fh, LOCK_UN); fclose($fh);
+}
+
+// ---- visitor statistics heartbeat (POST beat=1; see lib/usage.php): answered at once, logged, no reply body ----
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['beat'])) {
+    http_response_code(204);
+    require __DIR__ . '/lib/usage.php';
+    $newDay = usageLog(__DIR__);
+    if ($newDay) {                                  // first beat of a UTC day: fold yesterday, drop old raw logs
+        ignore_user_abort(true);
+        if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+        usageHousekeep(__DIR__);
+    }
+    exit;
 }
 
 // ---- version only ----

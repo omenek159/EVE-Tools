@@ -26,6 +26,8 @@ function load() {
   return { hub: ore.hub || "station:60003760", basis: ore.basis in BASES ? ore.basis : "sellPct",
     cache: p ? { hub: p.hub, at: p.at, ids: Object.keys(p.data || {}), data: p.data || {} } : null };
 }
+/** This browser had opened EVE Tools before (for the visitor statistics' new/returning count). */
+export const returning = store.getJSON(KEY, null) != null;
 const S = load();
 const save = () => store.setJSON(KEY, S);
 save();                                             // keep what was taken over from the Ore module's old settings
