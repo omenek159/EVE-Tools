@@ -5,14 +5,14 @@ import * as P from "./prices.js";
 
 /* ---------- module registry ----------
    To add a tool: create js/modules/<name>.js exporting mount(el) and optionally reset(),
-   then add one entry here. `tag` (optional) is a small label next to the name in the menu, e.g. "alpha". `keys` are the browser-storage keys the module uses (for Settings → reset). */
+   then add one entry here. `tag` (optional) is a small label next to the name in the menu, e.g. "WIP". `keys` are the browser-storage keys the module uses (for Settings → reset). */
 const MODULES = [
   { id: "ore-prices", label: "Ore prices", file: "./modules/ore.js",
     resetLabel: "Reset ore calculator", keys: ["oreProfitCalc.v1"] },
   { id: "reprocessing", label: "Reprocessing", file: "./modules/reprocessing.js",
     resetLabel: "Reset reprocessing settings", keys: ["eveTools.reprocessing.v1"] },
   { id: "incursions", label: "Incursions", file: "./modules/incursions.js", keys: [] },   // saves nothing
-  { id: "rdf", label: "RDF", tag: "alpha", file: "./modules/rdf.js", keys: [] },   // saves nothing
+  { id: "rdf", label: "RDF", tag: "WIP", file: "./modules/rdf.js", keys: [] },   // saves nothing
 ];
 const LIVE = MODULES.filter(m => !m.soon);
 
