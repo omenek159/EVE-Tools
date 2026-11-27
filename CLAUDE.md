@@ -107,7 +107,7 @@ Ask the user before every commit and push.
 | `feat-<name>` | one new module or bigger piece of work each (e.g. `feat-reprocessing`, `feat-rdf`). Updated only from `main`, never from `rc` (that would pull in other unreleased features). |
 | `fix-<name>` | any small change to live, made from the latest `main`; deleted once merged. |
 
-- **New feature:** `feat-*` → merge into `rc` → test `rc` on the test site → raise MAJOR on `rc` → merge `rc` into `main` → run Deploy on `main` → merge `main` into the other `feat-*` branches.
+- **New feature:** `feat-*` → merge into `rc` → test `rc` on the test site → raise MINOR on `rc` → merge `rc` into `main` → run Deploy on `main` → merge `main` into the other `feat-*` branches.
 - **Small change:** `fix-*` from `main` → raise MINOR → test on the test site → merge into `main` → run Deploy on `main` → merge `main` into `rc` and every `feat-*` (otherwise the next release would undo the fix) → delete the `fix-*` branch.
 - **Bug in an unreleased feature:** fix it on its `feat-*` branch, then merge that into `rc` again.
 - Before working on a branch, fetch and update it: the user also commits from their own computer.
@@ -118,8 +118,8 @@ Ask the user before every commit and push.
 
 `APP_VERSION` in `js/version.js` is `"MAJOR.MINOR"`. The site is public since 1.0 (2026-11-27).
 
-- **MAJOR** +1 with MINOR back to 0 for a release with new features (a new tool or a bigger change), raised on `rc` just before merging into `main`: `"1.3"` → `"2.0"`.
-- **MINOR** +1 for each small change through `fix-*`, raised on the `fix-*` branch: `"1.0"` → `"1.1"`.
+- **MINOR** +1 for every release, new features included, until the user says otherwise: raised on `rc` just before merging into `main` for features, on the `fix-*` branch for small changes: `"1.3"` → `"1.4"`.
+- **MAJOR** is raised only when the user asks for it (MINOR back to 0: `"1.9"` → `"2.0"`). Visitor statistics shipped as 1.3 this way (2026-11-27).
 - A change that doesn't touch the site (README, CLAUDE.md, comments only) doesn't change the version, so open pages aren't offered a pointless reload.
 - Feature branches never change the version, so it only conflicts when it really changed on `main`.
 - The update bar only offers a reload when the server's version is *higher* than the page's.
